@@ -367,3 +367,34 @@ drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
   for update using (auth.uid() = id)
   with check (auth.uid() = id and role = public.my_role());
+
+-- ============================================================
+--  Envío automático de notificaciones (emails / push)
+-- ============================================================
+-- Marca de cuándo se notificó un mensaje puntual (para no repetir).
+alter table public.messages add column if not exists notified_at timestamptz;
+
+-- Registro de envíos de mensajes recurrentes (evita duplicados por día).
+create table if not exists public.schedule_sends (
+  id uuid primary key default gen_random_uuid(),
+  schedule_id uuid not null references public.message_schedules(id) on delete cascade,
+  send_date date not null,
+  created_at timestamptz not null default now(),
+  unique (schedule_id, send_date)
+);
+alter table public.schedule_sends enable row level security;
+-- Sin políticas: solo el servicio (service_role) accede desde el servidor.
+
+-- Suscripciones push del navegador de cada cliente.
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  endpoint text not null unique,
+  subscription jsonb not null,
+  created_at timestamptz not null default now()
+);
+alter table public.push_subscriptions enable row level security;
+
+drop policy if exists "client manages own push subs" on public.push_subscriptions;
+create policy "client manages own push subs" on public.push_subscriptions
+  for all using (client_id = auth.uid()) with check (client_id = auth.uid());

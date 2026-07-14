@@ -11,6 +11,7 @@ import Agenda from './Agenda'
 import Documentos from './Documentos'
 import Formularios from './Formularios'
 import Notificaciones from './Notificaciones'
+import InstallPrompt from './InstallPrompt'
 
 export type ClientTab = 'perfil' | 'metricas' | 'analisis' | 'calendario' | 'formularios' | 'documentos'
 
@@ -118,6 +119,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
 
         {/* scroll body */}
         <div className="om-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 26px' }}>
+          <InstallPrompt />
           {cTab === 'perfil' && <Perfil profile={profile} />}
           {cTab === 'metricas' && <Metricas profile={profile} />}
           {cTab === 'analisis' && <Analisis clientId={profile.id} />}
