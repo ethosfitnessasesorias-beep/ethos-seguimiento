@@ -13,6 +13,8 @@ import { perimeterRows, weightChart } from '../../lib/metrics'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
 import Modal from '../Modal'
 import ProgressPhotos from '../ProgressPhotos'
+import ClienteAgenda from './ClienteAgenda'
+import ClienteDocumentos from './ClienteDocumentos'
 import type { TrainerTab } from './TrainerApp'
 
 interface Props {
@@ -109,10 +111,12 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       {profile && <FichaCard p={profile} />}
 
       {/* sub tabs */}
-      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '20px 0 22px' }}>
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '20px 0 22px', flexWrap: 'wrap' }}>
         {subTab('evolucion', 'Evolución')}
         {subTab('fotos', 'Control fotográfico')}
         {subTab('formularios', 'Formularios')}
+        {subTab('agenda', 'Agenda')}
+        {subTab('documentos', 'Documentos')}
       </div>
 
       {loading ? (
@@ -126,8 +130,12 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
           </div>
           <ProgressPhotos clientId={clientId} columns={4} />
         </div>
-      ) : (
+      ) : tTab === 'formularios' ? (
         <TrainerForms clientId={clientId} />
+      ) : tTab === 'agenda' ? (
+        <ClienteAgenda clientId={clientId} />
+      ) : (
+        <ClienteDocumentos clientId={clientId} />
       )}
 
       {editing && profile && (
@@ -313,40 +321,41 @@ function TrainerForms({ clientId }: { clientId: string }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {subs.map((f) => (
-        <div key={f.id} style={{ ...card, padding: '20px 22px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <span style={{ fontSize: 15, fontWeight: 700 }}>{f.form_title}</span>
-            <span style={{ fontSize: 11, color: mut(0.45) }}>{f.created_at.slice(0, 10)}</span>
-            <button
-              onClick={() => toggle(f)}
-              style={{
-                marginLeft: 'auto',
-                fontSize: 10.5,
-                fontWeight: 600,
-                cursor: 'pointer',
-                color: f.reviewed ? colors.green : colors.accent,
-                background: f.reviewed ? 'rgba(74,222,128,0.12)' : 'rgba(219,24,9,0.14)',
-                border: 'none',
-                padding: '4px 11px',
-                borderRadius: 999,
-                fontFamily: 'inherit',
-              }}
-            >
-              {f.reviewed ? '✓ Revisado' : 'Marcar revisado'}
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {f.answers.map((qa, j) => (
-              <div key={j}>
-                <div style={{ fontSize: 12, color: mut(0.5), marginBottom: 3 }}>{qa.q}</div>
-                <div style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.5 }}>{qa.a || '—'}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <FormAccordion key={f.id} f={f} onToggleReviewed={() => toggle(f)} />
       ))}
+    </div>
+  )
+}
+
+function FormAccordion({ f, onToggleReviewed }: { f: FormSubmission; onToggleReviewed: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ ...card, padding: '16px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={() => setOpen((o) => !o)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left' }}>
+          <span style={{ color: mut(0.4), fontSize: 12, width: 14 }}>{open ? '▾' : '▸'}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: colors.text }}>{f.form_title}</span>
+          <span style={{ fontSize: 11, color: mut(0.45) }}>{f.created_at.slice(0, 10)}</span>
+        </button>
+        <button
+          onClick={onToggleReviewed}
+          style={{ fontSize: 10.5, fontWeight: 600, cursor: 'pointer', color: f.reviewed ? colors.green : colors.accent, background: f.reviewed ? 'rgba(74,222,128,0.12)' : 'rgba(219,24,9,0.14)', border: 'none', padding: '4px 11px', borderRadius: 999, fontFamily: 'inherit', flex: 'none' }}
+        >
+          {f.reviewed ? '✓ Revisado' : 'Marcar revisado'}
+        </button>
+      </div>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16, paddingTop: 4 }}>
+          {f.answers.map((qa, j) => (
+            <div key={j}>
+              <div style={{ fontSize: 12, color: mut(0.5), marginBottom: 3 }}>{qa.q}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.5 }}>{qa.a || '—'}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

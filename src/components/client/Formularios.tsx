@@ -5,6 +5,7 @@ import {
   FORM_TEMPLATES,
   listSubmissions,
   submitForm,
+  templateByType,
   type Answer,
   type FormSubmission,
   type FormTemplate,
@@ -22,7 +23,13 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export default function Formularios({ profile }: { profile: Profile }) {
+interface FormulariosProps {
+  profile: Profile
+  initialFormType?: 'reporte' | 'cambio' | null
+  onConsumed?: () => void
+}
+
+export default function Formularios({ profile, initialFormType, onConsumed }: FormulariosProps) {
   const [filling, setFilling] = useState<FormTemplate | null>(null)
   const [subs, setSubs] = useState<FormSubmission[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,6 +45,16 @@ export default function Formularios({ profile }: { profile: Profile }) {
   useEffect(() => {
     reload()
   }, [reload])
+
+  // Al llegar desde el calendario, abre directamente ese formulario.
+  useEffect(() => {
+    if (initialFormType) {
+      const t = templateByType(initialFormType)
+      if (t) setFilling(t)
+      onConsumed?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFormType])
 
   if (filling) {
     return (

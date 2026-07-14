@@ -27,7 +27,12 @@ interface Props {
 
 export default function ClientApp({ profile, onSignOut }: Props) {
   const [cTab, setCTab] = useState<ClientTab>('perfil')
-  const [calDay, setCalDay] = useState(13)
+  const [openFormType, setOpenFormType] = useState<'reporte' | 'cambio' | null>(null)
+
+  const openForm = (formType: 'reporte' | 'cambio') => {
+    setOpenFormType(formType)
+    setCTab('formularios')
+  }
 
   const tabColor = (k: ClientTab) => (cTab === k ? colors.accent : mut(0.45))
   const tabs: { key: ClientTab; label: string; icon: React.ReactNode }[] = [
@@ -95,10 +100,12 @@ export default function ClientApp({ profile, onSignOut }: Props) {
         <div className="om-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 26px' }}>
           {cTab === 'perfil' && <Perfil profile={profile} />}
           {cTab === 'metricas' && <Metricas clientId={profile.id} />}
-          {cTab === 'analisis' && <Analisis />}
-          {cTab === 'calendario' && <Agenda calDay={calDay} setCalDay={setCalDay} />}
-          {cTab === 'formularios' && <Formularios profile={profile} />}
-          {cTab === 'documentos' && <Documentos />}
+          {cTab === 'analisis' && <Analisis clientId={profile.id} />}
+          {cTab === 'calendario' && <Agenda clientId={profile.id} onOpenForm={openForm} />}
+          {cTab === 'formularios' && (
+            <Formularios profile={profile} initialFormType={openFormType} onConsumed={() => setOpenFormType(null)} />
+          )}
+          {cTab === 'documentos' && <Documentos clientId={profile.id} />}
         </div>
 
         {/* bottom tab bar */}

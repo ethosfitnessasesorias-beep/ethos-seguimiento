@@ -7,7 +7,7 @@ import Clientes from './Clientes'
 import ClienteDetalle from './ClienteDetalle'
 
 export type TrainerView = 'resumen' | 'clientes' | 'cliente'
-export type TrainerTab = 'evolucion' | 'fotos' | 'formularios'
+export type TrainerTab = 'evolucion' | 'fotos' | 'formularios' | 'agenda' | 'documentos'
 
 interface Props {
   profile: Profile

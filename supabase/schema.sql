@@ -171,3 +171,73 @@ create policy "trainer reads forms" on public.form_submissions
 drop policy if exists "trainer updates forms" on public.form_submissions;
 create policy "trainer updates forms" on public.form_submissions
   for update using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+-- ============================================================
+--  Calendario / eventos y programas (Fase: Calendario)
+-- ============================================================
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  event_date date not null,
+  type text not null,
+  time text,
+  detail text,
+  created_at timestamptz not null default now()
+);
+alter table public.events enable row level security;
+
+drop policy if exists "client reads own events" on public.events;
+create policy "client reads own events" on public.events
+  for select using (client_id = auth.uid());
+drop policy if exists "trainer manages events" on public.events;
+create policy "trainer manages events" on public.events
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+create table if not exists public.program_templates (
+  id uuid primary key default gen_random_uuid(),
+  trainer_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null,
+  pattern jsonb not null,
+  created_at timestamptz not null default now()
+);
+alter table public.program_templates enable row level security;
+
+drop policy if exists "trainer manages own templates" on public.program_templates;
+create policy "trainer manages own templates" on public.program_templates
+  for all using (trainer_id = auth.uid()) with check (trainer_id = auth.uid());
+
+-- ============================================================
+--  Documentos (Fase: Documentos)
+-- ============================================================
+create table if not exists public.documents (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null,
+  category text not null,
+  storage_path text not null,
+  size_bytes bigint,
+  created_at timestamptz not null default now()
+);
+alter table public.documents enable row level security;
+
+drop policy if exists "client reads own documents" on public.documents;
+create policy "client reads own documents" on public.documents
+  for select using (client_id = auth.uid());
+drop policy if exists "trainer manages documents" on public.documents;
+create policy "trainer manages documents" on public.documents
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+insert into storage.buckets (id, name, public)
+values ('documents', 'documents', false)
+on conflict (id) do nothing;
+
+drop policy if exists "trainer manages doc files" on storage.objects;
+create policy "trainer manages doc files" on storage.objects
+  for all to authenticated
+  using (bucket_id = 'documents' and public.my_role() = 'trainer')
+  with check (bucket_id = 'documents' and public.my_role() = 'trainer');
+
+drop policy if exists "client reads own doc files" on storage.objects;
+create policy "client reads own doc files" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'documents' and (storage.foldername(name))[1] = auth.uid()::text);
