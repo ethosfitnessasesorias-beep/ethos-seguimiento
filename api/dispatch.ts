@@ -69,29 +69,45 @@ export default async function handler(req: Req, res: Res) {
     return { email: data?.email ?? null, name: data?.full_name ?? null }
   }
 
-  const sendPush = async (clientId: string, title: string, body: string) => {
-    if (!PUSH_ENABLED) return
+  const sendPush = async (clientId: string, title: string, body: string): Promise<number> => {
+    if (!PUSH_ENABLED) return 0
     const { data: subs } = await supabase.from('push_subscriptions').select('id, subscription').eq('client_id', clientId)
+    let n = 0
     for (const s of subs ?? []) {
       try {
         await webpush.sendNotification(s.subscription as webpush.PushSubscription, JSON.stringify({ title, body }))
         pushes++
+        n++
       } catch (e: unknown) {
         const code = (e as { statusCode?: number }).statusCode
         if (code === 404 || code === 410) await supabase.from('push_subscriptions').delete().eq('id', s.id)
+        else errors.push(`push ${clientId}: ${e instanceof Error ? e.message : e}`)
       }
     }
+    return n
   }
 
-  // Entrega por todos los canales disponibles.
-  const deliver = async (clientId: string, body: string) => {
+  // Entrega por email y push de forma INDEPENDIENTE (si uno falla, el otro sigue).
+  // Devuelve true si al menos un canal entregó.
+  const deliver = async (clientId: string, body: string): Promise<boolean> => {
     const { email, name } = await clientInfo(clientId)
     const text = personalize(body, name)
+    let ok = false
     if (EMAIL_ENABLED && email) {
-      await sendEmail(email, 'ETHOS GYM · Mensaje de tu entrenador', text)
-      emails++
+      try {
+        await sendEmail(email, 'ETHOS GYM · Mensaje de tu entrenador', text)
+        emails++
+        ok = true
+      } catch (e) {
+        errors.push(`email ${clientId}: ${e instanceof Error ? e.message : e}`)
+      }
     }
-    await sendPush(clientId, 'ETHOS GYM', text)
+    try {
+      if ((await sendPush(clientId, 'ETHOS GYM', text)) > 0) ok = true
+    } catch (e) {
+      errors.push(`push ${clientId}: ${e instanceof Error ? e.message : e}`)
+    }
+    return ok
   }
 
   // 1) Mensajes puntuales vencidos y no enviados.
@@ -101,12 +117,9 @@ export default async function handler(req: Req, res: Res) {
     .lte('send_date', today)
     .is('notified_at', null)
   for (const m of oneOffs ?? []) {
-    try {
-      await deliver(m.client_id, m.body)
-      await supabase.from('messages').update({ notified_at: new Date().toISOString() }).eq('id', m.id)
-    } catch (e) {
-      errors.push(`msg ${m.id}: ${e instanceof Error ? e.message : e}`)
-    }
+    // Marca como enviado solo si al menos un canal entregó (si no, se reintenta).
+    const ok = await deliver(m.client_id, m.body)
+    if (ok) await supabase.from('messages').update({ notified_at: new Date().toISOString() }).eq('id', m.id)
   }
 
   // 2) Mensajes recurrentes que tocan hoy.
@@ -127,8 +140,8 @@ export default async function handler(req: Req, res: Res) {
         .eq('send_date', today)
         .maybeSingle()
       if (already) continue
-      await deliver(s.client_id, s.body)
-      await supabase.from('schedule_sends').insert({ schedule_id: s.id, send_date: today })
+      const ok = await deliver(s.client_id, s.body)
+      if (ok) await supabase.from('schedule_sends').insert({ schedule_id: s.id, send_date: today })
     } catch (e) {
       errors.push(`sched ${s.id}: ${e instanceof Error ? e.message : e}`)
     }
