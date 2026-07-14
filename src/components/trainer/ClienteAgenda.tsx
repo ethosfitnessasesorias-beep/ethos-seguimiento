@@ -28,6 +28,7 @@ import {
   listOneOffMessages,
   listSchedules,
   MESSAGE_TEMPLATES,
+  sendNow,
   type Message,
   type MessageSchedule,
 } from '../../lib/messages'
@@ -624,31 +625,38 @@ function MessagesSection({ clientId }: { clientId: string }) {
 function NewMessageModal({ clientId, onClose, onDone }: { clientId: string; onClose: () => void; onDone: () => void }) {
   const [mode, setMode] = useState<'recurrente' | 'puntual'>('recurrente')
   const [body, setBody] = useState('')
+  const [time, setTime] = useState('09:00')
   // recurrente
   const [weekday, setWeekday] = useState(0)
   const [interval, setInterval] = useState('1')
   const [endDate, setEndDate] = useState('')
   // puntual
   const [date, setDate] = useState(todayStr())
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<null | 'now' | 'schedule'>(null)
   const [err, setErr] = useState<string | null>(null)
 
-  const send = async () => {
+  const run = async (fn: () => Promise<void>, kind: 'now' | 'schedule') => {
     if (!body.trim()) return setErr('Escribe el mensaje.')
-    setBusy(true)
+    setBusy(kind)
     setErr(null)
     try {
-      if (mode === 'recurrente') {
-        await createSchedule(clientId, body.trim(), weekday, parseInt(interval, 10) || 1, endDate || null)
-      } else {
-        await createMessage(clientId, body.trim(), date)
-      }
+      await fn()
       onDone()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo crear.')
-      setBusy(false)
+      setBusy(null)
     }
   }
+
+  const enviarAhora = () => run(() => sendNow(clientId, body.trim()), 'now')
+  const programar = () =>
+    run(async () => {
+      if (mode === 'recurrente') {
+        await createSchedule(clientId, body.trim(), weekday, parseInt(interval, 10) || 1, endDate || null, time)
+      } else {
+        await createMessage(clientId, body.trim(), date, time)
+      }
+    }, 'schedule')
 
   return (
     <Modal title="Nuevo mensaje de motivación" onClose={onClose}>
@@ -680,31 +688,66 @@ function NewMessageModal({ clientId, onClose, onDone }: { clientId: string; onCl
               </button>
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             <label>
-              <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Frecuencia (semanas)</span>
-              <input inputMode="numeric" value={interval} onChange={(e) => setInterval(e.target.value)} placeholder="1 = cada semana" style={fieldStyle} />
+              <span style={labelSt}>Hora</span>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={fieldStyle} />
             </label>
             <label>
-              <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Dejar de enviar el… (opcional)</span>
+              <span style={labelSt}>Frecuencia (sem.)</span>
+              <input inputMode="numeric" value={interval} onChange={(e) => setInterval(e.target.value)} placeholder="1" style={fieldStyle} />
+            </label>
+            <label>
+              <span style={labelSt}>Fin (opcional)</span>
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={fieldStyle} />
             </label>
           </div>
-          <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 8 }}>Sin fecha fin, el mensaje se repite indefinidamente.</div>
+          <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 8 }}>Se enviará ese día, a esa hora, cada X semanas. Sin fecha fin, se repite indefinidamente.</div>
+          {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+          <button onClick={programar} disabled={!!busy} style={primaryBtn}>
+            {busy === 'schedule' ? 'Programando…' : 'Programar mensaje recurrente'}
+          </button>
         </>
       ) : (
-        <label style={{ display: 'block', marginTop: 12 }}>
-          <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Fecha de envío</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
-        </label>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+            <label>
+              <span style={labelSt}>Fecha</span>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+            </label>
+            <label>
+              <span style={labelSt}>Hora</span>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={fieldStyle} />
+            </label>
+          </div>
+          {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+            <button onClick={enviarAhora} disabled={!!busy} style={{ ...primaryBtn, marginTop: 0, flex: 1 }}>
+              {busy === 'now' ? 'Enviando…' : '⚡ Enviar ahora'}
+            </button>
+            <button onClick={programar} disabled={!!busy} style={{ ...primaryBtn, marginTop: 0, flex: 1, background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)' }}>
+              {busy === 'schedule' ? 'Programando…' : 'Programar'}
+            </button>
+          </div>
+        </>
       )}
-
-      {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
-      <button onClick={send} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-        {busy ? 'Creando…' : mode === 'recurrente' ? 'Programar mensaje recurrente' : 'Programar mensaje'}
-      </button>
     </Modal>
   )
+}
+
+const labelSt: React.CSSProperties = { fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }
+const primaryBtn: React.CSSProperties = {
+  width: '100%',
+  marginTop: 16,
+  background: colors.accent,
+  color: '#fff',
+  border: 'none',
+  borderRadius: 12,
+  padding: 14,
+  fontFamily: 'inherit',
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: 'pointer',
 }
 
 const fieldStyle: React.CSSProperties = {

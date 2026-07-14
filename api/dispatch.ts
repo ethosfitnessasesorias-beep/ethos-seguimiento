@@ -1,21 +1,30 @@
-// Función de servidor (Vercel) que envía las notificaciones "de hoy" por
-// email (Resend) y push (Web Push). La dispara un cron externo una vez al día.
+// Función de servidor (Vercel) que envía las notificaciones que "tocan ahora"
+// por email (Resend) y push (Web Push).
+//
+// La llaman:
+//  - un cron externo (cron-job.org) cada ~15 min con la cabecera del CRON_SECRET,
+//  - o la propia app (sesión del entrenador) al pulsar "Enviar ahora".
 //
 // Variables de entorno (Vercel → Settings → Environment Variables):
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   — base de datos (service_role = SECRETO)
-//   RESEND_API_KEY, RESEND_FROM               — emails (opcional)
-//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT  — push (opcional)
-//   CRON_SECRET                               — protege el endpoint
+//  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, RESEND_FROM,
+//  VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 
-function todayISO(): string {
-  const d = new Date()
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-}
-function weekdayOf(iso: string): number {
-  const [y, m, d] = iso.split('-').map(Number)
-  return (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7
+const TZ = 'Europe/Madrid'
+
+function madridNow(): { date: string; hhmm: string; weekday: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date())
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  const date = `${g('year')}-${g('month')}-${g('day')}`
+  let hh = g('hour')
+  if (hh === '24') hh = '00'
+  const hhmm = `${hh}:${g('minute')}`
+  const [y, m, d] = date.split('-').map(Number)
+  const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7
+  return { date, hhmm, weekday }
 }
 function weeksBetween(a: string, b: string): number {
   const [ay, am, ad] = a.split('-').map(Number)
@@ -24,6 +33,10 @@ function weeksBetween(a: string, b: string): number {
 }
 function personalize(body: string, name: string | null): string {
   return body.replace(/\{nombre\}/gi, name?.split(' ')[0] || 'crack')
+}
+// ¿Ya ha llegado la hora de envío? (send_time null = sin restricción)
+function timeReached(sendTime: string | null, nowHHMM: string): boolean {
+  return !sendTime || nowHHMM >= sendTime
 }
 
 const EMAIL_ENABLED = !!process.env.RESEND_API_KEY
@@ -50,16 +63,26 @@ interface Req { headers: Record<string, string | undefined> }
 interface Res { status: (n: number) => Res; json: (b: unknown) => void }
 
 export default async function handler(req: Req, res: Res) {
-  const secret = process.env.CRON_SECRET
-  if (secret && req.headers['authorization'] !== `Bearer ${secret}`) {
-    return res.status(401).json({ error: 'no autorizado' })
-  }
-
   const supabase = createClient(process.env.SUPABASE_URL as string, process.env.SUPABASE_SERVICE_ROLE_KEY as string, {
     auth: { persistSession: false },
   })
 
-  const today = todayISO()
+  // Autorización: cron (CRON_SECRET) o un entrenador con sesión válida.
+  const auth = req.headers['authorization']
+  let authorized = false
+  const secret = process.env.CRON_SECRET
+  if (secret && auth === `Bearer ${secret}`) authorized = true
+  else if (auth?.startsWith('Bearer ')) {
+    const token = auth.slice(7)
+    const { data } = await supabase.auth.getUser(token)
+    if (data.user) {
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
+      if (prof?.role === 'trainer') authorized = true
+    }
+  }
+  if (secret && !authorized) return res.status(401).json({ error: 'no autorizado' })
+
+  const { date: today, hhmm, weekday } = madridNow()
   let emails = 0
   let pushes = 0
   const errors: string[] = []
@@ -87,8 +110,6 @@ export default async function handler(req: Req, res: Res) {
     return n
   }
 
-  // Entrega por email y push de forma INDEPENDIENTE (si uno falla, el otro sigue).
-  // Devuelve true si al menos un canal entregó.
   const deliver = async (clientId: string, body: string): Promise<boolean> => {
     const { email, name } = await clientInfo(clientId)
     const text = personalize(body, name)
@@ -110,27 +131,29 @@ export default async function handler(req: Req, res: Res) {
     return ok
   }
 
-  // 1) Mensajes puntuales vencidos y no enviados.
+  // 1) Mensajes puntuales: vencidos y no enviados, respetando su hora.
   const { data: oneOffs } = await supabase
     .from('messages')
-    .select('id, client_id, body')
+    .select('id, client_id, body, send_date, send_time')
     .lte('send_date', today)
     .is('notified_at', null)
   for (const m of oneOffs ?? []) {
-    // Marca como enviado solo si al menos un canal entregó (si no, se reintenta).
+    // Si es de un día anterior, se envía ya. Si es de hoy, espera a su hora.
+    if (m.send_date === today && !timeReached(m.send_time, hhmm)) continue
     const ok = await deliver(m.client_id, m.body)
     if (ok) await supabase.from('messages').update({ notified_at: new Date().toISOString() }).eq('id', m.id)
   }
 
-  // 2) Mensajes recurrentes que tocan hoy.
+  // 2) Mensajes recurrentes que tocan hoy, respetando su hora.
   const { data: schedules } = await supabase
     .from('message_schedules')
-    .select('id, client_id, body, weekday, interval_weeks, start_date, end_date')
+    .select('id, client_id, body, weekday, interval_weeks, start_date, end_date, send_time')
   for (const s of schedules ?? []) {
     try {
       if (s.end_date && today > s.end_date) continue
       if (today < s.start_date) continue
-      if (weekdayOf(today) !== s.weekday) continue
+      if (weekday !== s.weekday) continue
+      if (!timeReached(s.send_time, hhmm)) continue
       const w = weeksBetween(s.start_date, today)
       if (w < 0 || w % Math.max(1, s.interval_weeks) !== 0) continue
       const { data: already } = await supabase
@@ -147,5 +170,5 @@ export default async function handler(req: Req, res: Res) {
     }
   }
 
-  return res.status(200).json({ ok: true, date: today, emails, pushes, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
+  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
 }

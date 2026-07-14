@@ -11,6 +11,7 @@ export interface Message {
   trainer_id: string | null
   body: string
   send_date: string
+  send_time: string | null
   read: boolean
   created_at: string
 }
@@ -22,6 +23,7 @@ export interface MessageSchedule {
   body: string
   weekday: number // 0=Lunes … 6=Domingo
   interval_weeks: number // 1 = cada semana, 2 = cada 2 semanas…
+  send_time: string | null // 'HH:MM' hora de envío
   start_date: string
   end_date: string | null // null = no termina nunca
   created_at: string
@@ -43,7 +45,8 @@ export const MESSAGE_TEMPLATES = [
 export function describeSchedule(s: MessageSchedule): string {
   const freq = s.interval_weeks > 1 ? `cada ${s.interval_weeks} semanas` : 'cada semana'
   const end = s.end_date ? `hasta ${s.end_date}` : 'sin fecha fin'
-  return `Cada ${DAY_NAMES[s.weekday]} · ${freq} · ${end}`
+  const hora = s.send_time ? ` a las ${s.send_time}` : ''
+  return `Cada ${DAY_NAMES[s.weekday]}${hora} · ${freq} · ${end}`
 }
 
 /** Fechas en las que una programación se muestra, hasta `until` inclusive. */
@@ -70,9 +73,32 @@ export async function listOneOffMessages(clientId: string): Promise<Message[]> {
   return (data ?? []) as Message[]
 }
 
-export async function createMessage(clientId: string, body: string, sendDate: string) {
-  const { error } = await supabase.from('messages').insert({ client_id: clientId, body, send_date: sendDate })
+export async function createMessage(clientId: string, body: string, sendDate: string, sendTime: string | null) {
+  const { error } = await supabase.from('messages').insert({ client_id: clientId, body, send_date: sendDate, send_time: sendTime })
   if (error) throw error
+}
+
+function todayLocal(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Pide al servidor que procese los envíos pendientes ahora mismo (sesión del entrenador). */
+export async function triggerDispatch(): Promise<void> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) return
+  try {
+    await fetch('/api/dispatch', { headers: { Authorization: `Bearer ${token}` } })
+  } catch {
+    // el cron lo recogerá igualmente
+  }
+}
+
+/** Crea un mensaje para hoy sin restricción de hora y lo envía al instante. */
+export async function sendNow(clientId: string, body: string) {
+  await createMessage(clientId, body, todayLocal(), null)
+  await triggerDispatch()
 }
 
 export async function deleteMessage(id: string) {
@@ -95,6 +121,7 @@ export async function createSchedule(
   weekday: number,
   intervalWeeks: number,
   endDate: string | null,
+  sendTime: string | null,
 ) {
   const { error } = await supabase.from('message_schedules').insert({
     client_id: clientId,
@@ -102,6 +129,7 @@ export async function createSchedule(
     weekday,
     interval_weeks: Math.max(1, intervalWeeks),
     end_date: endDate,
+    send_time: sendTime,
   })
   if (error) throw error
 }

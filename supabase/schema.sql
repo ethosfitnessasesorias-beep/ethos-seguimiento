@@ -299,6 +299,9 @@ create table if not exists public.message_schedules (
   end_date date,
   created_at timestamptz not null default now()
 );
+-- Hora de envío (para respetar el horario de cada cliente).
+alter table public.messages add column if not exists send_time text;
+alter table public.message_schedules add column if not exists send_time text;
 alter table public.message_schedules enable row level security;
 
 drop policy if exists "trainer manages schedules" on public.message_schedules;
