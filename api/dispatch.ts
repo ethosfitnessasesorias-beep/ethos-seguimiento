@@ -1,5 +1,6 @@
 // Función de servidor (Vercel) que envía las notificaciones "de hoy" por email.
-// La ejecuta Vercel Cron una vez al día (ver vercel.json).
+// Se dispara una vez al día con un cron externo gratuito (cron-job.org) que
+// llama a  https://tu-dominio/api/dispatch  con la cabecera del CRON_SECRET.
 //
 // Variables de entorno necesarias (configúralas en Vercel → Settings → Environment Variables):
 //   SUPABASE_URL                 — la URL de tu proyecto (https://xxxx.supabase.co)
