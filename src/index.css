@@ -46,3 +46,21 @@ button {
   background: radial-gradient(1200px 700px at 50% -10%, #161616 0%, #080808 55%);
   padding: 96px 0 60px;
 }
+
+/* Bottom-sheet modal entrance. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Text inputs adopt the ETHOS accent on focus. */
+input:focus {
+  border-color: rgba(219, 24, 9, 0.6) !important;
+}
+
