@@ -11,6 +11,7 @@ import {
 } from '../../lib/db'
 import { perimeterRows, shortDate, weightChart } from '../../lib/metrics'
 import Modal from '../Modal'
+import ProgressPhotos from '../ProgressPhotos'
 
 const card: React.CSSProperties = {
   background: colors.surface1,
@@ -156,6 +157,12 @@ export default function Metricas({ clientId }: { clientId: string }) {
         <button style={{ ...ghostBtn, marginTop: 12 }} onClick={() => setModal('perim')}>
           Registrar perímetros
         </button>
+      </div>
+
+      {/* registro fotográfico */}
+      <div style={{ ...card, padding: 17, marginTop: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 13 }}>Registro fotográfico</div>
+        <ProgressPhotos clientId={clientId} canUpload columns={3} />
       </div>
 
       {/* composición (estimación visual, se activará más adelante) */}

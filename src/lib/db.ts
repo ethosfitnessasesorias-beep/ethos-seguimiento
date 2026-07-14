@@ -119,3 +119,51 @@ export async function addPerimeters(
   const { error } = await supabase.from('perimeter_logs').insert({ client_id: clientId, ...values })
   if (error) throw error
 }
+
+// ---- Fotos de progreso ----
+export const PHOTO_BUCKET = 'progress-photos'
+
+export interface ProgressPhoto {
+  id: string
+  client_id: string
+  log_date: string
+  storage_path: string
+  created_at: string
+}
+
+export interface PhotoWithUrl extends ProgressPhoto {
+  url: string | null
+}
+
+export async function listPhotos(clientId: string): Promise<PhotoWithUrl[]> {
+  const { data, error } = await supabase
+    .from('progress_photos')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('log_date', { ascending: true })
+  if (error) throw error
+  const rows = (data ?? []) as ProgressPhoto[]
+  if (rows.length === 0) return []
+  const { data: signed } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .createSignedUrls(rows.map((r) => r.storage_path), 3600)
+  const urlByPath = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]))
+  return rows.map((r) => ({ ...r, url: urlByPath.get(r.storage_path) ?? null }))
+}
+
+export async function addPhoto(clientId: string, file: File): Promise<void> {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${clientId}/${crypto.randomUUID()}.${ext}`
+  const { error: upErr } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
+  if (upErr) throw upErr
+  const { error } = await supabase.from('progress_photos').insert({ client_id: clientId, storage_path: path })
+  if (error) throw error
+}
+
+export async function deletePhoto(photo: ProgressPhoto): Promise<void> {
+  await supabase.storage.from(PHOTO_BUCKET).remove([photo.storage_path])
+  const { error } = await supabase.from('progress_photos').delete().eq('id', photo.id)
+  if (error) throw error
+}

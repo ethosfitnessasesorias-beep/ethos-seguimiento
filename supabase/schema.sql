@@ -106,3 +106,42 @@ create policy "client writes own perimeters" on public.perimeter_logs
 drop policy if exists "trainer reads perimeters" on public.perimeter_logs;
 create policy "trainer reads perimeters" on public.perimeter_logs
   for select using (public.my_role() = 'trainer');
+
+-- ============================================================
+--  Fotos de progreso (Fase: Fotos)
+-- ============================================================
+
+-- Tabla con la fecha y la ruta de cada foto en el almacenamiento.
+create table if not exists public.progress_photos (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  log_date date not null default current_date,
+  storage_path text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.progress_photos enable row level security;
+
+drop policy if exists "client writes own photos rows" on public.progress_photos;
+create policy "client writes own photos rows" on public.progress_photos
+  for all using (client_id = auth.uid()) with check (client_id = auth.uid());
+
+drop policy if exists "trainer reads photos rows" on public.progress_photos;
+create policy "trainer reads photos rows" on public.progress_photos
+  for select using (public.my_role() = 'trainer');
+
+-- Bucket de almacenamiento (privado; las imágenes se sirven con enlaces firmados).
+insert into storage.buckets (id, name, public)
+values ('progress-photos', 'progress-photos', false)
+on conflict (id) do nothing;
+
+-- Políticas del almacenamiento: cada cliente gestiona su carpeta; el entrenador lee.
+drop policy if exists "client manages own photo files" on storage.objects;
+create policy "client manages own photo files" on storage.objects
+  for all to authenticated
+  using (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+drop policy if exists "trainer reads photo files" on storage.objects;
+create policy "trainer reads photo files" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'progress-photos' and public.my_role() = 'trainer');

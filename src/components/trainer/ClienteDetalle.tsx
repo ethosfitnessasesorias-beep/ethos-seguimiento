@@ -11,6 +11,7 @@ import {
 } from '../../lib/db'
 import { perimeterRows, weightChart } from '../../lib/metrics'
 import Modal from '../Modal'
+import ProgressPhotos from '../ProgressPhotos'
 import type { TrainerTab } from './TrainerApp'
 
 interface Props {
@@ -117,14 +118,17 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
         <div style={{ fontSize: 13, color: mut(0.4), padding: 20 }}>Cargando datos del cliente…</div>
       ) : tTab === 'evolucion' ? (
         <Evolucion weights={weights} perims={perims} target={target} />
+      ) : tTab === 'fotos' ? (
+        <div style={{ ...card, padding: 22 }}>
+          <div style={{ fontSize: 13, color: mut(0.5), marginBottom: 16 }}>
+            Fotos de progreso subidas por {name}, ordenadas por fecha.
+          </div>
+          <ProgressPhotos clientId={clientId} columns={4} />
+        </div>
       ) : (
         <ComingSoon
-          title={tTab === 'fotos' ? 'Control fotográfico' : 'Formularios'}
-          text={
-            tTab === 'fotos'
-              ? 'Aquí verás las fotos de progreso que suba el cliente, ordenadas por fecha. Se activará al conectar el almacenamiento de imágenes.'
-              : 'Aquí verás las respuestas del cliente a los formularios (reporte semanal, cambio de planificación…). Se conectará en una fase posterior.'
-          }
+          title="Formularios"
+          text="Aquí verás las respuestas del cliente a los formularios (reporte semanal, cambio de planificación…). Se conectará en una fase posterior."
         />
       )}
 
