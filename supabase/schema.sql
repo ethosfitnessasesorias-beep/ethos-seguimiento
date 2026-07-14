@@ -245,3 +245,41 @@ drop policy if exists "client reads own doc files" on storage.objects;
 create policy "client reads own doc files" on storage.objects
   for select to authenticated
   using (bucket_id = 'documents' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ============================================================
+--  Adherencia, composición y mensajes (Fase: Seguimiento)
+-- ============================================================
+alter table public.profiles add column if not exists sex text;
+alter table public.profiles add column if not exists adherence int not null default 0;
+
+alter table public.events add column if not exists completed boolean not null default false;
+alter table public.events add column if not exists note text;
+
+-- El cliente puede marcar sus eventos como hechos y añadir notas.
+drop policy if exists "client updates own events" on public.events;
+create policy "client updates own events" on public.events
+  for update using (client_id = auth.uid()) with check (client_id = auth.uid());
+
+-- Mensajes de motivación / notificaciones.
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  trainer_id uuid references public.profiles(id) on delete set null,
+  body text not null,
+  send_date date not null default current_date,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+alter table public.messages enable row level security;
+
+drop policy if exists "trainer manages messages" on public.messages;
+create policy "trainer manages messages" on public.messages
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+drop policy if exists "client reads own messages" on public.messages;
+create policy "client reads own messages" on public.messages
+  for select using (client_id = auth.uid() and send_date <= current_date);
+
+drop policy if exists "client updates own messages" on public.messages;
+create policy "client updates own messages" on public.messages
+  for update using (client_id = auth.uid()) with check (client_id = auth.uid());

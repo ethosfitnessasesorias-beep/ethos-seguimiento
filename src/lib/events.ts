@@ -29,7 +29,40 @@ export interface CalEvent {
   title: string | null
   program_id: string | null
   program_name: string | null
+  completed: boolean
+  note: string | null
   created_at: string
+}
+
+function todayStr(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Marca un evento como hecho / no hecho y recalcula la adherencia. */
+export async function setEventCompleted(eventId: string, clientId: string, completed: boolean) {
+  const { error } = await supabase.from('events').update({ completed }).eq('id', eventId)
+  if (error) throw error
+  await recomputeAdherence(clientId)
+}
+
+export async function setEventNote(eventId: string, note: string) {
+  const { error } = await supabase.from('events').update({ note: note || null }).eq('id', eventId)
+  if (error) throw error
+}
+
+/** Adherencia = eventos completados / eventos ya vencidos (hasta hoy) × 100. */
+export async function recomputeAdherence(clientId: string): Promise<number> {
+  const today = todayStr()
+  const { data } = await supabase
+    .from('events')
+    .select('completed, event_date')
+    .eq('client_id', clientId)
+    .lte('event_date', today)
+  const due = data ?? []
+  const pct = due.length === 0 ? 0 : Math.round((due.filter((e) => e.completed).length / due.length) * 100)
+  await supabase.from('profiles').update({ adherence: pct }).eq('id', clientId)
+  return pct
 }
 
 // ---- Utilidades de fecha (seguras, sin dependencias) ----

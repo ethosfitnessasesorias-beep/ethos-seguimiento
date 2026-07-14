@@ -28,6 +28,8 @@ function initials(name: string | null): string {
 
 const dash = (v: unknown, suffix = '') => (v == null || v === '' ? '—' : `${v}${suffix}`)
 
+const adhColor = (a: number) => (a >= 80 ? colors.green : a >= 60 ? colors.amber : colors.accent)
+
 export default function Perfil({ profile }: { profile: Profile }) {
   const p = profile
   const sub = [p.age ? `${p.age} años` : null, p.plan ? `Plan ${p.plan}` : null].filter(Boolean).join(' · ')
@@ -88,6 +90,18 @@ export default function Perfil({ profile }: { profile: Profile }) {
         <Stat value={dash(p.height_cm)} unit={p.height_cm ? ' cm' : ''} label="Altura" />
         <Stat value={dash(p.current_weight)} unit={p.current_weight ? ' kg' : ''} label="Peso actual" />
         <Stat value={dash(p.target_weight)} unit={p.target_weight ? ' kg' : ''} label="Objetivo" accent />
+      </div>
+
+      {/* cumplimiento del plan */}
+      <div style={{ ...card, padding: '15px 16px', marginTop: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: mut(0.6), fontWeight: 500 }}>Cumplimiento del plan</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: adhColor(p.adherence ?? 0) }}>{p.adherence ?? 0}%</span>
+        </div>
+        <div style={{ height: 8, background: colors.surface2, borderRadius: 999, overflow: 'hidden' }}>
+          <div style={{ width: `${p.adherence ?? 0}%`, height: '100%', background: adhColor(p.adherence ?? 0), borderRadius: 999 }} />
+        </div>
+        <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 7 }}>Según los eventos que marcas como hechos en tu Agenda.</div>
       </div>
 
       {/* lesiones */}

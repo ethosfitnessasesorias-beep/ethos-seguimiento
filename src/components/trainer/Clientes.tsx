@@ -12,6 +12,8 @@ function initials(name: string | null): string {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
 }
 
+const adhColor = (a: number) => (a >= 80 ? colors.green : a >= 60 ? colors.amber : colors.accent)
+
 export default function Clientes({ onOpen }: Props) {
   const [clients, setClients] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,7 +101,14 @@ function ClientCard({ c, onClick }: { c: Profile; onClick: () => void }) {
         </div>
         <Chevron />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: mut(0.5), borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12, marginTop: 15 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
+        <span style={{ color: mut(0.5) }}>Cumplimiento</span>
+        <span style={{ fontWeight: 700, color: adhColor(c.adherence ?? 0) }}>{c.adherence ?? 0}%</span>
+      </div>
+      <div style={{ height: 7, background: colors.surface2, borderRadius: 999, overflow: 'hidden' }}>
+        <div style={{ width: `${c.adherence ?? 0}%`, height: '100%', background: adhColor(c.adherence ?? 0), borderRadius: 999 }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: mut(0.5), borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12, marginTop: 14 }}>
         <span>{c.email || 'Sin email'}</span>
         <span style={{ color: colors.accent, fontWeight: 600 }}>Ver evolución</span>
       </div>

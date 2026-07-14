@@ -12,12 +12,14 @@ export interface Profile {
   phone: string | null
   city: string | null
   age: number | null
+  sex: string | null // 'male' | 'female'
   height_cm: number | null
   current_weight: number | null
   target_weight: number | null
   injuries: string | null
   pathologies: string | null
   main_goal: string | null
+  adherence: number | null
   created_at: string
 }
 

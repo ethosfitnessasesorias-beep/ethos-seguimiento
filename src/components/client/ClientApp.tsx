@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
+import { useAuth } from '../../lib/auth'
+import { listClientMessages, type Message } from '../../lib/messages'
 import { Bell, User, Pulse, BarChart, Calendar, FileIcon, Clipboard } from '../icons'
 import Perfil from './Perfil'
 import Metricas from './Metricas'
@@ -8,6 +10,7 @@ import Analisis from './Analisis'
 import Agenda from './Agenda'
 import Documentos from './Documentos'
 import Formularios from './Formularios'
+import Notificaciones from './Notificaciones'
 
 export type ClientTab = 'perfil' | 'metricas' | 'analisis' | 'calendario' | 'formularios' | 'documentos'
 
@@ -26,8 +29,17 @@ interface Props {
 }
 
 export default function ClientApp({ profile, onSignOut }: Props) {
+  const { refreshProfile } = useAuth()
   const [cTab, setCTab] = useState<ClientTab>('perfil')
   const [openFormType, setOpenFormType] = useState<'reporte' | 'cambio' | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [showNotif, setShowNotif] = useState(false)
+
+  const loadMessages = () => {
+    listClientMessages(profile.id).then(setMessages).catch(() => {})
+  }
+  useEffect(loadMessages, [profile.id])
+  const unread = messages.filter((m) => !m.read).length
 
   const openForm = (formType: 'reporte' | 'cambio') => {
     setOpenFormType(formType)
@@ -84,9 +96,16 @@ export default function ClientApp({ profile, onSignOut }: Props) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <IconCircle>
-              <Bell size={18} />
-            </IconCircle>
+            <div style={{ position: 'relative' }}>
+              <IconCircle onClick={() => setShowNotif(true)} title="Notificaciones">
+                <Bell size={18} />
+              </IconCircle>
+              {unread > 0 && (
+                <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999, background: colors.accent, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #080808' }}>
+                  {unread}
+                </span>
+              )}
+            </div>
             <IconCircle onClick={onSignOut} title="Cerrar sesión">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F5F5F5" strokeWidth="1.8">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
@@ -99,9 +118,9 @@ export default function ClientApp({ profile, onSignOut }: Props) {
         {/* scroll body */}
         <div className="om-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 26px' }}>
           {cTab === 'perfil' && <Perfil profile={profile} />}
-          {cTab === 'metricas' && <Metricas clientId={profile.id} />}
+          {cTab === 'metricas' && <Metricas profile={profile} />}
           {cTab === 'analisis' && <Analisis clientId={profile.id} />}
-          {cTab === 'calendario' && <Agenda clientId={profile.id} onOpenForm={openForm} />}
+          {cTab === 'calendario' && <Agenda clientId={profile.id} onOpenForm={openForm} onAdherenceChange={refreshProfile} />}
           {cTab === 'formularios' && (
             <Formularios profile={profile} initialFormType={openFormType} onConsumed={() => setOpenFormType(null)} />
           )}
@@ -132,6 +151,17 @@ export default function ClientApp({ profile, onSignOut }: Props) {
           ))}
         </div>
       </div>
+
+      {showNotif && (
+        <Notificaciones
+          profile={profile}
+          messages={messages}
+          onClose={() => {
+            setShowNotif(false)
+            loadMessages()
+          }}
+        />
+      )}
     </div>
   )
 }

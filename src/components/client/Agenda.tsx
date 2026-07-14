@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { EVENT_ORDER, EVENT_TYPES, listEvents, type CalEvent, type EventType } from '../../lib/events'
+import { EVENT_ORDER, EVENT_TYPES, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType } from '../../lib/events'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
@@ -12,9 +12,10 @@ function iso(y: number, m: number, d: number): string {
 interface Props {
   clientId: string
   onOpenForm: (formType: 'reporte' | 'cambio') => void
+  onAdherenceChange?: () => void
 }
 
-export default function Agenda({ clientId, onOpenForm }: Props) {
+export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Props) {
   const now = useMemo(() => new Date(), [])
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -78,6 +79,28 @@ export default function Agenda({ clientId, onOpenForm }: Props) {
   })
 
   const selEvents = byDay[selDay] || []
+
+  const patchEvent = (id: string, patch: Partial<CalEvent>) =>
+    setEvents((evs) => evs.map((e) => (e.id === id ? { ...e, ...patch } : e)))
+
+  const toggleDone = async (e: CalEvent) => {
+    const v = !e.completed
+    patchEvent(e.id, { completed: v })
+    try {
+      await setEventCompleted(e.id, clientId, v)
+      onAdherenceChange?.()
+    } catch {
+      patchEvent(e.id, { completed: !v })
+    }
+  }
+  const saveNote = async (e: CalEvent, text: string) => {
+    patchEvent(e.id, { note: text || null })
+    try {
+      await setEventNote(e.id, text)
+    } catch {
+      // se mantiene el valor local
+    }
+  }
 
   return (
     <div>
@@ -154,21 +177,37 @@ export default function Agenda({ clientId, onOpenForm }: Props) {
         {selEvents.map((e) => {
           const cfg = EVENT_TYPES[e.type as EventType]
           return (
-            <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 13, background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderLeft: `3px solid ${cfg.color}`, borderRadius: 12, padding: '13px 15px' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{e.title || cfg.label}</div>
-                {e.title && <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 1 }}>{cfg.label}</div>}
-                {e.detail && <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2 }}>{e.detail}</div>}
-                {cfg.form && (
-                  <button
-                    onClick={() => onOpenForm(cfg.form!)}
-                    style={{ marginTop: 8, background: cfg.color, color: '#0a0a0a', border: 'none', borderRadius: 8, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Rellenar ahora ›
-                  </button>
-                )}
+            <div key={e.id} style={{ background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderLeft: `3px solid ${cfg.color}`, borderRadius: 12, padding: '13px 15px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                {/* checkbox hecho */}
+                <button
+                  onClick={() => toggleDone(e)}
+                  title={e.completed ? 'Hecho' : 'Marcar como hecho'}
+                  style={{ marginTop: 1, width: 22, height: 22, flex: 'none', borderRadius: 7, border: `1.5px solid ${e.completed ? colors.green : 'rgba(255,255,255,0.25)'}`, background: e.completed ? colors.green : 'transparent', color: '#062', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, padding: 0 }}
+                >
+                  {e.completed ? '✓' : ''}
+                </button>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, textDecoration: e.completed ? 'line-through' : 'none', color: e.completed ? mut(0.5) : colors.text }}>{e.title || cfg.label}</div>
+                  {e.title && <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 1 }}>{cfg.label}</div>}
+                  {e.detail && <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2 }}>{e.detail}</div>}
+                  {cfg.form && (
+                    <button
+                      onClick={() => onOpenForm(cfg.form!)}
+                      style={{ marginTop: 8, background: cfg.color, color: '#0a0a0a', border: 'none', borderRadius: 8, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Rellenar ahora ›
+                    </button>
+                  )}
+                </div>
+                {e.time && <span style={{ fontSize: 12, fontWeight: 600, color: cfg.color }}>{e.time}</span>}
               </div>
-              {e.time && <span style={{ fontSize: 12, fontWeight: 600, color: cfg.color }}>{e.time}</span>}
+              <input
+                defaultValue={e.note ?? ''}
+                onBlur={(ev) => saveNote(e, ev.target.value)}
+                placeholder="Añadir una nota…"
+                style={{ width: '100%', marginTop: 10, background: '#0e0e0e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 10px', color: colors.text, fontFamily: 'inherit', fontSize: 12, outline: 'none' }}
+              />
             </div>
           )
         })}

@@ -1,0 +1,73 @@
+// Estimación de composición corporal a partir de peso y perímetros.
+// Grasa: método US Navy (validado). Músculo y hueso: estimaciones.
+
+export interface CompositionInput {
+  sex: string | null // 'male' | 'female'
+  heightCm: number | null
+  weight: number | null
+  waist: number | null // cintura
+  neck: number | null // cuello
+  hip: number | null // cadera (necesario en mujeres)
+}
+
+export interface CompositionResult {
+  ok: true
+  fatPct: number
+  fatKg: number
+  musclePct: number
+  muscleKg: number
+  bonePct: number
+  boneKg: number
+  leanKg: number
+}
+
+export interface CompositionMissing {
+  ok: false
+  missing: string[]
+}
+
+const log10 = (x: number) => Math.log(x) / Math.log(10)
+const round1 = (x: number) => Math.round(x * 10) / 10
+
+export function computeComposition(input: CompositionInput): CompositionResult | CompositionMissing {
+  const missing: string[] = []
+  if (input.sex !== 'male' && input.sex !== 'female') missing.push('sexo')
+  if (!input.heightCm) missing.push('altura')
+  if (!input.weight) missing.push('peso')
+  if (!input.waist) missing.push('cintura')
+  if (!input.neck) missing.push('cuello')
+  if (input.sex === 'female' && !input.hip) missing.push('cadera')
+  if (missing.length) return { ok: false, missing }
+
+  const h = input.heightCm as number
+  const weight = input.weight as number
+  const waist = input.waist as number
+  const neck = input.neck as number
+  const hip = input.hip as number
+
+  let fatPct: number
+  if (input.sex === 'male') {
+    const denom = 1.0324 - 0.19077 * log10(Math.max(1, waist - neck)) + 0.15456 * log10(h)
+    fatPct = 495 / denom - 450
+  } else {
+    const denom = 1.29579 - 0.35004 * log10(Math.max(1, waist + hip - neck)) + 0.221 * log10(h)
+    fatPct = 495 / denom - 450
+  }
+  fatPct = Math.min(60, Math.max(3, fatPct))
+
+  const fatKg = (fatPct / 100) * weight
+  const leanKg = weight - fatKg
+  const muscleKg = 0.5 * leanKg // músculo esquelético estimado (~50% de la masa magra)
+  const boneKg = 0.045 * weight // masa ósea estimada (~4,5% del peso)
+
+  return {
+    ok: true,
+    fatPct: round1(fatPct),
+    fatKg: round1(fatKg),
+    musclePct: round1((muscleKg / weight) * 100),
+    muscleKg: round1(muscleKg),
+    bonePct: round1((boneKg / weight) * 100),
+    boneKg: round1(boneKg),
+    leanKg: round1(leanKg),
+  }
+}

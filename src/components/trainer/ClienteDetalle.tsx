@@ -14,6 +14,7 @@ import { METRIC_OPTIONS, perimeterRows, perimeterSeries, shortDate, weightSeries
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
 import Modal from '../Modal'
 import MetricChart from '../MetricChart'
+import Composicion from '../Composicion'
 import ProgressPhotos from '../ProgressPhotos'
 import ClienteAgenda from './ClienteAgenda'
 import ClienteDocumentos from './ClienteDocumentos'
@@ -38,6 +39,8 @@ function initials(name: string | null): string {
 }
 
 const dash = (v: unknown, suffix = '') => (v == null || v === '' ? '—' : `${v}${suffix}`)
+
+const adhColor = (a: number) => (a >= 80 ? colors.green : a >= 60 ? colors.amber : colors.accent)
 
 export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -97,9 +100,10 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
             <span style={{ fontSize: 12, color: mut(0.5) }}>{profile?.email || ''}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 26, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
           <HeaderStat label="Peso actual" value={current != null ? String(current) : '—'} />
           <HeaderStat label="Objetivo" value={target != null ? String(target) : '—'} color={colors.accent} />
+          <HeaderStat label="Cumplimiento" value={`${profile?.adherence ?? 0}%`} color={adhColor(profile?.adherence ?? 0)} />
           <button
             onClick={() => setEditing(true)}
             style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
@@ -124,7 +128,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       {loading ? (
         <div style={{ fontSize: 13, color: mut(0.4), padding: 20 }}>Cargando datos del cliente…</div>
       ) : tTab === 'evolucion' ? (
-        <Evolucion weights={weights} perims={perims} target={target} />
+        <Evolucion weights={weights} perims={perims} target={target} profile={profile} />
       ) : tTab === 'fotos' ? (
         <div style={{ ...card, padding: 22 }}>
           <div style={{ fontSize: 13, color: mut(0.5), marginBottom: 16 }}>
@@ -202,7 +206,7 @@ function HeaderStat({ label, value, color }: { label: string; value: string; col
   )
 }
 
-function Evolucion({ weights, perims, target }: { weights: WeightLog[]; perims: PerimeterLog[]; target: number | null }) {
+function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[]; perims: PerimeterLog[]; target: number | null; profile: Profile | null }) {
   const [metric, setMetric] = useState('weight')
   const [showAll, setShowAll] = useState(false)
   const rows = perimeterRows(perims)
@@ -284,6 +288,16 @@ function Evolucion({ weights, perims, target }: { weights: WeightLog[]; perims: 
           ) : (
             <div style={{ fontSize: 12.5, color: mut(0.4) }}>Sin perímetros registrados aún.</div>
           )}
+        </div>
+        <div style={{ ...card, padding: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Composición corporal</div>
+          <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 14 }}>Estimada según peso y perímetros</div>
+          <Composicion
+            sex={profile?.sex ?? null}
+            heightCm={profile?.height_cm ?? null}
+            weight={weights.length ? Number(weights[weights.length - 1].weight) : null}
+            perim={perims[perims.length - 1] ?? null}
+          />
         </div>
       </div>
     </div>
@@ -437,6 +451,7 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
     pathologies: profile.pathologies ?? '',
     main_goal: profile.main_goal ?? '',
   })
+  const [sex, setSex] = useState<string | null>(profile.sex ?? null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const set = (k: keyof typeof f) => (v: string) => setF((s) => ({ ...s, [k]: v }))
@@ -455,6 +470,7 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
         full_name: txt(f.full_name),
         plan: txt(f.plan),
         age: num(f.age),
+        sex,
         height_cm: num(f.height_cm),
         target_weight: num(f.target_weight),
         phone: txt(f.phone),
@@ -481,6 +497,20 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
           <Field label="Peso objetivo (kg)" value={f.target_weight} onChange={set('target_weight')} placeholder="80" />
           <Field label="Teléfono" value={f.phone} onChange={set('phone')} placeholder="+34 600 12 34 56" />
           <Field label="Ciudad" value={f.city} onChange={set('city')} placeholder="Valencia" />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Sexo (para calcular la composición corporal)</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ k: 'male', l: 'Hombre' }, { k: 'female', l: 'Mujer' }].map((o) => (
+              <button
+                key={o.k}
+                onClick={() => setSex(o.k)}
+                style={{ flex: 1, background: sex === o.k ? 'rgba(219,24,9,0.14)' : colors.surface2, color: sex === o.k ? colors.text : mut(0.6), border: `1px solid ${sex === o.k ? 'rgba(219,24,9,0.5)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 10, padding: '11px 0', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                {o.l}
+              </button>
+            ))}
+          </div>
         </div>
         <Area label="Lesiones" value={f.injuries} onChange={set('injuries')} />
         <Area label="Patologías y alergias" value={f.pathologies} onChange={set('pathologies')} />

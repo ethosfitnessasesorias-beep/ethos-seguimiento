@@ -14,6 +14,7 @@ import {
   type ProgramTemplate,
   type WeekPattern,
 } from '../../lib/events'
+import { createMessages, deleteMessage, listTrainerMessages, MESSAGE_TEMPLATES, type Message } from '../../lib/messages'
 import Modal from '../Modal'
 
 const card: React.CSSProperties = { background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }
@@ -107,6 +108,8 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
         </div>
       )}
 
+      <MessagesSection clientId={clientId} />
+
       {programOpen && (
         <ProgramModal
           clientId={clientId}
@@ -119,6 +122,108 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
         />
       )}
     </div>
+  )
+}
+
+// ---------- Mensajes de motivación / notificaciones ----------
+function MessagesSection({ clientId }: { clientId: string }) {
+  const [msgs, setMsgs] = useState<Message[]>([])
+  const [open, setOpen] = useState(false)
+
+  const reload = useCallback(() => {
+    listTrainerMessages(clientId).then(setMsgs).catch(() => {})
+  }, [clientId])
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  const remove = async (m: Message) => {
+    await deleteMessage(m.id)
+    reload()
+  }
+
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>Mensajes de motivación</div>
+          <div style={{ fontSize: 12, color: mut(0.5), marginTop: 2 }}>Le llegan al cliente como notificación. Usa {'{nombre}'} para personalizar.</div>
+        </div>
+        <button onClick={() => setOpen(true)} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 16px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          + Nuevo mensaje
+        </button>
+      </div>
+
+      {msgs.length === 0 ? (
+        <div style={{ ...card, border: '1px dashed rgba(255,255,255,0.1)', padding: '20px', textAlign: 'center', fontSize: 12.5, color: mut(0.4) }}>
+          Sin mensajes programados.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {msgs.map((m) => (
+            <div key={m.id} style={{ ...card, padding: '12px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, lineHeight: 1.45 }}>{m.body}</div>
+                <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 3 }}>Se envía el {m.send_date}{m.read ? ' · leído' : ''}</div>
+              </div>
+              <button onClick={() => remove(m)} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 15 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && <NewMessageModal clientId={clientId} onClose={() => setOpen(false)} onDone={() => { setOpen(false); reload() }} />}
+    </div>
+  )
+}
+
+function NewMessageModal({ clientId, onClose, onDone }: { clientId: string; onClose: () => void; onDone: () => void }) {
+  const [body, setBody] = useState('')
+  const [start, setStart] = useState(todayISO())
+  const [repeat, setRepeat] = useState('1')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const send = async () => {
+    if (!body.trim()) return setErr('Escribe el mensaje.')
+    const r = parseInt(repeat, 10) || 1
+    setBusy(true)
+    setErr(null)
+    try {
+      await createMessages(clientId, body.trim(), start, r)
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo crear.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Nuevo mensaje de motivación" onClose={onClose}>
+      <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>PLANTILLAS RÁPIDAS</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        {MESSAGE_TEMPLATES.map((t, i) => (
+          <button key={i} onClick={() => setBody(t)} style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '6px 10px', fontFamily: 'inherit', fontSize: 11, color: mut(0.7), cursor: 'pointer', textAlign: 'left', maxWidth: '100%' }}>
+            {t.length > 34 ? t.slice(0, 34) + '…' : t}
+          </button>
+        ))}
+      </div>
+      <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder="¡Vamos {nombre}! Esta semana lo damos todo 💪" style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5 }} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+        <label>
+          <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Primer envío</span>
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle} />
+        </label>
+        <label>
+          <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Repetir (semanas)</span>
+          <input inputMode="numeric" value={repeat} onChange={(e) => setRepeat(e.target.value)} style={fieldStyle} />
+        </label>
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={send} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Creando…' : 'Programar mensaje'}
+      </button>
+    </Modal>
   )
 }
 

@@ -9,9 +9,11 @@ import {
   type PerimeterLog,
   type WeightLog,
 } from '../../lib/db'
+import type { Profile } from '../../lib/db'
 import { perimeterRows, shortDate, weightChart } from '../../lib/metrics'
 import Modal from '../Modal'
 import ProgressPhotos from '../ProgressPhotos'
+import Composicion from '../Composicion'
 
 const card: React.CSSProperties = {
   background: colors.surface1,
@@ -45,7 +47,8 @@ const ghostBtn: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-export default function Metricas({ clientId }: { clientId: string }) {
+export default function Metricas({ profile }: { profile: Profile }) {
+  const clientId = profile.id
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [perims, setPerims] = useState<PerimeterLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -165,10 +168,11 @@ export default function Metricas({ clientId }: { clientId: string }) {
         <ProgressPhotos clientId={clientId} canUpload columns={3} />
       </div>
 
-      {/* composición (estimación visual, se activará más adelante) */}
-      <div style={{ ...card, padding: 17, marginTop: 14, opacity: 0.55 }}>
+      {/* composición corporal */}
+      <div style={{ ...card, padding: 17, marginTop: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 700 }}>Composición corporal</div>
-        <div style={{ fontSize: 11, color: mut(0.4), margin: '3px 0 6px' }}>Estimación · disponible próximamente</div>
+        <div style={{ fontSize: 11, color: mut(0.4), margin: '3px 0 13px' }}>Estimada según peso y perímetros</div>
+        <Composicion sex={profile.sex} heightCm={profile.height_cm} weight={latest} perim={perims[perims.length - 1] ?? null} />
       </div>
 
       {modal === 'weight' && (
