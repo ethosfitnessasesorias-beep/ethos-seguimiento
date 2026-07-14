@@ -21,6 +21,7 @@ export interface Profile {
   main_goal: string | null
   adherence: number | null
   messages_read_until: string | null
+  trainer_id: string | null
   created_at: string
 }
 
@@ -72,12 +73,13 @@ export async function updateProfile(id: string, patch: Partial<Profile>) {
 }
 
 // ---- Clientes (vista entrenador) ----
+// Solo los clientes asignados al entrenador que ha iniciado sesión.
 export async function listClients(): Promise<Profile[]> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('role', 'client')
-    .order('full_name', { ascending: true })
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  let q = supabase.from('profiles').select('*').eq('role', 'client')
+  if (uid) q = q.eq('trainer_id', uid)
+  const { data, error } = await q.order('full_name', { ascending: true })
   if (error) throw error
   return data ?? []
 }

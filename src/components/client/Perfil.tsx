@@ -3,6 +3,7 @@ import { colors, mut } from '../../theme'
 import { Mail, Phone, Pin } from '../icons'
 import type { Profile } from '../../lib/db'
 import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
+import RegalosFidelidad from './RegalosFidelidad'
 
 const sectionLabel = (mt = 14): React.CSSProperties => ({
   fontSize: 11,
@@ -130,6 +131,9 @@ export default function Perfil({ profile }: { profile: Profile }) {
         />
         <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 9 }}>Según los eventos que marcas como hechos en tu Agenda.</div>
       </div>
+
+      {/* regalos de fidelidad */}
+      <RegalosFidelidad clientId={p.id} startISO={p.created_at} />
 
       {/* lesiones */}
       <div style={sectionLabel(20)}>PERFIL DE LESIONES</div>

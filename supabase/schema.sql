@@ -310,6 +310,70 @@ create policy "client reads own schedules" on public.message_schedules
   for select using (client_id = auth.uid());
 
 -- ============================================================
+--  Equipo (asignación de clientes) y regalos de fidelidad
+-- ============================================================
+alter table public.profiles add column if not exists trainer_id uuid references public.profiles(id);
+
+-- Al canjear la invitación, el cliente queda asignado a SU entrenador.
+create or replace function public.redeem_invite(
+  p_token uuid, p_full_name text, p_email text, p_phone text, p_city text,
+  p_age int, p_sex text, p_height numeric, p_injuries text, p_pathologies text, p_main_goal text
+) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_trainer uuid;
+begin
+  if auth.uid() is null then raise exception 'No autenticado'; end if;
+  update public.invites set used_at = now(), used_by = auth.uid()
+    where id = p_token and used_at is null
+    returning trainer_id into v_trainer;
+  if not found then raise exception 'Invitación no válida o ya usada'; end if;
+  insert into public.profiles (id, role, full_name, email, phone, city, age, sex, height_cm, injuries, pathologies, main_goal, trainer_id)
+  values (auth.uid(), 'client', p_full_name, p_email, p_phone, p_city, p_age, p_sex, p_height, p_injuries, p_pathologies, p_main_goal, v_trainer)
+  on conflict (id) do update set
+    full_name = excluded.full_name, email = excluded.email, phone = excluded.phone, city = excluded.city,
+    age = excluded.age, sex = excluded.sex, height_cm = excluded.height_cm, injuries = excluded.injuries,
+    pathologies = excluded.pathologies, main_goal = excluded.main_goal, trainer_id = excluded.trainer_id;
+end $$;
+
+-- Resumen de equipo (agregados por entrenador; no expone datos de clientes).
+create or replace function public.get_team_summary()
+returns table(trainer_id uuid, trainer_name text, clients int, avg_adherence numeric, avg_months numeric)
+language sql stable security definer set search_path = public as $$
+  select t.id, t.full_name,
+    count(c.id)::int,
+    coalesce(round(avg(c.adherence)), 0)::numeric,
+    coalesce(round(avg(extract(epoch from (now() - c.created_at)) / 2629800.0)::numeric, 1), 0)::numeric
+  from public.profiles t
+  left join public.profiles c on c.trainer_id = t.id and c.role = 'client'
+  where t.role = 'trainer'
+  group by t.id, t.full_name
+$$;
+
+-- Regalos de fidelidad reclamados por el cliente.
+create table if not exists public.gift_claims (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  milestone text not null,
+  claimed_at timestamptz not null default now(),
+  delivered boolean not null default false,
+  delivered_at timestamptz,
+  unique (client_id, milestone)
+);
+alter table public.gift_claims enable row level security;
+
+drop policy if exists "client manages own claims" on public.gift_claims;
+create policy "client manages own claims" on public.gift_claims
+  for all using (client_id = auth.uid()) with check (client_id = auth.uid());
+
+drop policy if exists "trainer reads claims" on public.gift_claims;
+create policy "trainer reads claims" on public.gift_claims
+  for select using (public.my_role() = 'trainer');
+
+drop policy if exists "trainer updates claims" on public.gift_claims;
+create policy "trainer updates claims" on public.gift_claims
+  for update using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+-- ============================================================
 --  Invitaciones y cierre del registro (Fase: Altas)
 -- ============================================================
 create table if not exists public.invites (
