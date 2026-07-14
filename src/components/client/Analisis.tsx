@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { getProfile, listPerimeters, listWeights, type PerimeterLog, type WeightLog } from '../../lib/db'
-import { chart } from '../../lib/chart'
-import { perimeterRows, shortDate, weightChart } from '../../lib/metrics'
+import { getProfile, listPerimeters, listWeights, PERIMETER_FIELDS, type PerimeterLog, type WeightLog } from '../../lib/db'
+import { perimeterRows, perimeterSeries, weightSeries } from '../../lib/metrics'
+import MetricChart from '../MetricChart'
 import { Calendar } from '../icons'
 
 const card: React.CSSProperties = {
@@ -17,6 +17,7 @@ export default function Analisis({ clientId }: { clientId: string }) {
   const [perims, setPerims] = useState<PerimeterLog[]>([])
   const [target, setTarget] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [perimField, setPerimField] = useState('cintura')
 
   useEffect(() => {
     Promise.all([listWeights(clientId), listPerimeters(clientId), getProfile(clientId)])
@@ -28,21 +29,14 @@ export default function Analisis({ clientId }: { clientId: string }) {
       .finally(() => setLoading(false))
   }, [clientId])
 
-  const wc = weightChart(weights, 700, 240, 18, 30)
   const first = weights.length ? Number(weights[0].weight) : null
   const current = weights.length ? Number(weights[weights.length - 1].weight) : null
-
-  const waistLogs = perims.filter((p) => p.cintura != null)
-  const waistChart =
-    waistLogs.length >= 2
-      ? chart(waistLogs.map((p) => ({ v: Number(p.cintura), m: shortDate(p.log_date) })), 700, 200, 14, 20)
-      : null
   const rows = perimeterRows(perims)
+  const perimLabel = PERIMETER_FIELDS.find((f) => f.key === perimField)?.label ?? 'Perímetro'
 
   if (loading) return <div style={{ fontSize: 13, color: mut(0.4), padding: 20 }}>Cargando análisis…</div>
 
-  const empty = weights.length === 0 && perims.length === 0
-  if (empty) {
+  if (weights.length === 0 && perims.length === 0) {
     return (
       <div style={{ ...card, border: '1px dashed rgba(255,255,255,0.12)', textAlign: 'center', padding: '34px 18px' }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Sin datos todavía</div>
@@ -66,27 +60,8 @@ export default function Analisis({ clientId }: { clientId: string }) {
       {/* peso */}
       <div style={card}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Peso corporal</div>
-        <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 8 }}>kg · evolución</div>
-        {wc ? (
-          <svg viewBox="0 0 700 240" style={{ width: '100%', height: 180, display: 'block' }}>
-            <defs>
-              <linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="rgba(219,24,9,0.35)" />
-                <stop offset="1" stopColor="rgba(219,24,9,0)" />
-              </linearGradient>
-            </defs>
-            <path d={wc.area} fill="url(#wg)" />
-            <path d={wc.line} fill="none" stroke={colors.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-            {wc.pts.map((pt, i) => (
-              <circle key={i} cx={pt.cx} cy={pt.cy} r={4.5} fill={colors.bg} stroke={colors.accent} strokeWidth={2.5} />
-            ))}
-            {wc.pts.map((pt, i) => (
-              <text key={i} x={pt.cx} y={234} fill={mut(0.4)} fontSize={13} textAnchor="middle" fontFamily="Montserrat">{pt.label}</text>
-            ))}
-          </svg>
-        ) : (
-          <div style={{ fontSize: 12, color: mut(0.4), padding: '20px 0' }}>Registra 2 pesos o más para ver la curva.</div>
-        )}
+        <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 8 }}>kg · toca un punto para ver el dato</div>
+        <MetricChart points={weightSeries(weights)} color={colors.accent} unit="kg" height={180} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 12 }}>
           <MiniStat label="Inicial" value={first != null ? String(first) : '—'} />
           <MiniStat label="Actual" value={current != null ? String(current) : '—'} />
@@ -94,21 +69,29 @@ export default function Analisis({ clientId }: { clientId: string }) {
         </div>
       </div>
 
-      {/* cintura */}
+      {/* perímetro seleccionable */}
       <div style={{ ...card, marginTop: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Cintura</div>
-        <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 8 }}>cm · tendencia</div>
-        {waistChart ? (
-          <svg viewBox="0 0 700 200" style={{ width: '100%', height: 120, display: 'block' }}>
-            <path d={waistChart.area} fill="rgba(245,166,35,0.13)" />
-            <path d={waistChart.line} fill="none" stroke={colors.amber} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-            {waistChart.pts.map((pt, i) => (
-              <circle key={i} cx={pt.cx} cy={pt.cy} r={4} fill={colors.bg} stroke={colors.amber} strokeWidth={2.5} />
-            ))}
-          </svg>
-        ) : (
-          <div style={{ fontSize: 12, color: mut(0.4), padding: '10px 0' }}>Registra la cintura 2 veces o más para ver la tendencia.</div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Perímetro</div>
+            <div style={{ fontSize: 11, color: mut(0.4) }}>cm · {perimLabel.toLowerCase()}</div>
+          </div>
+        </div>
+        <div className="om-scroll" style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto' }}>
+          {PERIMETER_FIELDS.map((f) => {
+            const active = f.key === perimField
+            return (
+              <button
+                key={f.key}
+                onClick={() => setPerimField(f.key)}
+                style={{ flex: 'none', fontSize: 11, fontWeight: 600, background: active ? colors.amber : colors.surface2, color: active ? '#0a0a0a' : mut(0.6), border: active ? 'none' : '1px solid rgba(255,255,255,0.08)', padding: '6px 12px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {f.label}
+              </button>
+            )
+          })}
+        </div>
+        <MetricChart points={perimeterSeries(perims, perimField)} color={colors.amber} unit="cm" height={150} showAxis={false} />
       </div>
 
       {/* cambio por perímetro */}

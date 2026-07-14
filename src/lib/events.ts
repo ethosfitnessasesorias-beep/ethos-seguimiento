@@ -26,6 +26,9 @@ export interface CalEvent {
   type: EventType
   time: string | null
   detail: string | null
+  title: string | null
+  program_id: string | null
+  program_name: string | null
   created_at: string
 }
 
@@ -68,7 +71,7 @@ export async function deleteEvent(id: string) {
 
 // ---- Programas semanales ----
 // pattern: para cada día (0=Lunes … 6=Domingo) una lista de eventos.
-export type WeekPattern = Record<number, { type: EventType; time?: string }[]>
+export type WeekPattern = Record<number, { type: EventType; title?: string; time?: string }[]>
 
 export interface ProgramTemplate {
   id: string
@@ -78,16 +81,41 @@ export interface ProgramTemplate {
   created_at: string
 }
 
+interface ProgramRow {
+  client_id: string
+  event_date: string
+  type: EventType
+  time: string | null
+  title: string | null
+  program_id: string
+  program_name: string
+}
+
 /** Genera eventos concretos aplicando un patrón semanal desde una fecha, N semanas. */
-export async function generateProgram(clientId: string, pattern: WeekPattern, startMondayISO: string, weeks: number) {
-  const rows: { client_id: string; event_date: string; type: EventType; time: string | null }[] = []
+export async function generateProgram(
+  clientId: string,
+  pattern: WeekPattern,
+  startMondayISO: string,
+  weeks: number,
+  programName: string,
+) {
+  const programId = crypto.randomUUID()
+  const rows: ProgramRow[] = []
   for (let w = 0; w < weeks; w++) {
     for (let day = 0; day <= 6; day++) {
       const entries = pattern[day] || []
       if (entries.length === 0) continue
       const date = isoAddDays(startMondayISO, w * 7 + day)
       for (const e of entries) {
-        rows.push({ client_id: clientId, event_date: date, type: e.type, time: e.time || null })
+        rows.push({
+          client_id: clientId,
+          event_date: date,
+          type: e.type,
+          time: e.time || null,
+          title: e.title || null,
+          program_id: programId,
+          program_name: programName,
+        })
       }
     }
   }
@@ -95,6 +123,12 @@ export async function generateProgram(clientId: string, pattern: WeekPattern, st
   const { error } = await supabase.from('events').insert(rows)
   if (error) throw error
   return rows.length
+}
+
+/** Elimina todos los eventos de un programa. */
+export async function deleteProgram(programId: string) {
+  const { error } = await supabase.from('events').delete().eq('program_id', programId)
+  if (error) throw error
 }
 
 export async function listTemplates(): Promise<ProgramTemplate[]> {

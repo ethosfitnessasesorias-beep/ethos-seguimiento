@@ -156,7 +156,8 @@ export default function Agenda({ clientId, onOpenForm }: Props) {
           return (
             <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 13, background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderLeft: `3px solid ${cfg.color}`, borderRadius: 12, padding: '13px 15px' }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{cfg.label}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{e.title || cfg.label}</div>
+                {e.title && <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 1 }}>{cfg.label}</div>}
                 {e.detail && <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2 }}>{e.detail}</div>}
                 {cfg.form && (
                   <button

@@ -184,6 +184,10 @@ create table if not exists public.events (
   detail text,
   created_at timestamptz not null default now()
 );
+-- Columnas de programa (para agrupar eventos y darles nombre).
+alter table public.events add column if not exists program_id uuid;
+alter table public.events add column if not exists program_name text;
+alter table public.events add column if not exists title text;
 alter table public.events enable row level security;
 
 drop policy if exists "client reads own events" on public.events;

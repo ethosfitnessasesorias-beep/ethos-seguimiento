@@ -17,6 +17,33 @@ export function weightChart(weights: WeightLog[], w: number, h: number, top: num
   return chart(series, w, h, top, bot)
 }
 
+export interface SeriesPointDated {
+  date: string
+  value: number
+  label: string
+}
+
+export function weightSeries(weights: WeightLog[]): SeriesPointDated[] {
+  return weights.map((w) => ({ date: w.log_date, value: Number(w.weight), label: shortDate(w.log_date) }))
+}
+
+export function perimeterSeries(logs: PerimeterLog[], field: string): SeriesPointDated[] {
+  return logs
+    .filter((l) => (l[field as keyof PerimeterLog] as number | null) != null)
+    .map((l) => ({ date: l.log_date, value: Number(l[field as keyof PerimeterLog]), label: shortDate(l.log_date) }))
+}
+
+/** Métricas seleccionables para las gráficas (peso + perímetros). */
+export const METRIC_OPTIONS: { key: string; label: string; unit: string; color: string }[] = [
+  { key: 'weight', label: 'Peso', unit: 'kg', color: '#db1809' },
+  { key: 'cintura', label: 'Cintura', unit: 'cm', color: '#f5a623' },
+  { key: 'cadera', label: 'Cadera', unit: 'cm', color: '#2dd4bf' },
+  { key: 'pecho', label: 'Pecho', unit: 'cm', color: '#a78bfa' },
+  { key: 'brazo', label: 'Brazo', unit: 'cm', color: '#4ade80' },
+  { key: 'pierna', label: 'Pierna', unit: 'cm', color: '#f5a623' },
+  { key: 'cuello', label: 'Cuello', unit: 'cm', color: '#2dd4bf' },
+]
+
 export interface PerimeterRow {
   key: string
   name: string

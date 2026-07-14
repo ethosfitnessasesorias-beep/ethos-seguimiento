@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
 import {
-  deleteEvent,
+  deleteProgram,
   deleteTemplate,
   EVENT_ORDER,
   EVENT_TYPES,
@@ -30,6 +30,19 @@ function mondayOf(iso: string): string {
   dt.setDate(dt.getDate() - off)
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }
+function weekdayOf(iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number)
+  return (new Date(y, m - 1, d).getDay() + 6) % 7
+}
+
+interface ProgramGroup {
+  id: string
+  name: string
+  events: CalEvent[]
+  from: string
+  to: string
+  weeks: number
+}
 
 export default function ClienteAgenda({ clientId }: { clientId: string }) {
   const [events, setEvents] = useState<CalEvent[]>([])
@@ -39,9 +52,7 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
 
   const range = useMemo(() => {
     const d = new Date()
-    const from = `${d.getFullYear()}-01-01`
-    const to = `${d.getFullYear() + 1}-12-31`
-    return { from, to }
+    return { from: `${d.getFullYear()}-01-01`, to: `${d.getFullYear() + 1}-12-31` }
   }, [])
 
   const reload = useCallback(async () => {
@@ -58,18 +69,18 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
     reload()
   }, [reload])
 
-  const upcoming = events.filter((e) => e.event_date >= todayISO())
+  const { programs, loose } = useMemo(() => groupEvents(events), [events])
 
-  const remove = async (e: CalEvent) => {
-    if (!confirm('¿Eliminar este evento?')) return
-    await deleteEvent(e.id)
+  const removeProgram = async (id: string) => {
+    if (!confirm('¿Eliminar el programa completo y todos sus eventos?')) return
+    await deleteProgram(id)
     reload()
   }
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: mut(0.5) }}>Programa los eventos que verá el cliente en su Agenda.</div>
+        <div style={{ fontSize: 13, color: mut(0.5) }}>Programa la semana del cliente; se repite las veces que quieras.</div>
         <button onClick={() => setProgramOpen(true)} style={{ background: colors.accent, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 16px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
           + Programar semana
         </button>
@@ -81,27 +92,20 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
         </div>
       )}
 
-      <div style={{ ...card, padding: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>Próximos eventos ({upcoming.length})</div>
-        {loading ? (
-          <div style={{ fontSize: 12.5, color: mut(0.4) }}>Cargando…</div>
-        ) : upcoming.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: mut(0.4) }}>Sin eventos programados. Pulsa «Programar semana» para empezar.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {upcoming.map((e) => {
-              const cfg = EVENT_TYPES[e.type]
-              return (
-                <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${cfg.color}`, padding: '8px 0 8px 11px' }}>
-                  <span style={{ fontSize: 12, color: mut(0.5), width: 92, flex: 'none' }}>{e.event_date}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{cfg.label}{e.time ? ` · ${e.time}` : ''}</span>
-                  <button onClick={() => remove(e)} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 14 }}>✕</button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      {loading ? (
+        <div style={{ fontSize: 12.5, color: mut(0.4) }}>Cargando…</div>
+      ) : programs.length === 0 && loose.length === 0 ? (
+        <div style={{ ...card, border: '1px dashed rgba(255,255,255,0.12)', padding: '34px 18px', textAlign: 'center', fontSize: 13, color: mut(0.45) }}>
+          Sin programas todavía. Pulsa «Programar semana» para crear el primero.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {programs.map((p) => (
+            <ProgramCard key={p.id} p={p} onDelete={() => removeProgram(p.id)} />
+          ))}
+          {loose.length > 0 && <ProgramCard p={{ id: 'loose', name: 'Otros eventos', events: loose, from: loose[0].event_date, to: loose[loose.length - 1].event_date, weeks: 0 }} />}
+        </div>
+      )}
 
       {programOpen && (
         <ProgramModal
@@ -109,7 +113,7 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
           onClose={() => setProgramOpen(false)}
           onDone={(n) => {
             setProgramOpen(false)
-            setMsg(`Se han creado ${n} eventos.`)
+            setMsg(`Programa creado: ${n} eventos.`)
             reload()
           }}
         />
@@ -118,8 +122,82 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
   )
 }
 
+function groupEvents(events: CalEvent[]): { programs: ProgramGroup[]; loose: CalEvent[] } {
+  const map = new Map<string, CalEvent[]>()
+  const loose: CalEvent[] = []
+  for (const e of events) {
+    if (e.program_id) {
+      const arr = map.get(e.program_id) || []
+      arr.push(e)
+      map.set(e.program_id, arr)
+    } else loose.push(e)
+  }
+  const programs: ProgramGroup[] = [...map.entries()].map(([id, evs]) => {
+    const dates = evs.map((e) => e.event_date).sort()
+    const from = dates[0]
+    const to = dates[dates.length - 1]
+    const weeks = Math.round((new Date(to).getTime() - new Date(from).getTime()) / (7 * 86400000)) + 1
+    return { id, name: evs[0].program_name || 'Programa', events: evs, from, to, weeks }
+  })
+  programs.sort((a, b) => (a.from < b.from ? 1 : -1))
+  return { programs, loose }
+}
+
+function ProgramCard({ p, onDelete }: { p: ProgramGroup; onDelete?: () => void }) {
+  const [open, setOpen] = useState(false)
+
+  // Desglose semanal: para cada día, los tipos/nombres distintos.
+  const breakdown = useMemo(() => {
+    const perDay: Record<number, string[]> = {}
+    for (const e of p.events) {
+      const wd = weekdayOf(e.event_date)
+      const label = e.title || EVENT_TYPES[e.type as EventType]?.label || e.type
+      perDay[wd] = perDay[wd] || []
+      if (!perDay[wd].includes(label)) perDay[wd].push(label)
+    }
+    return perDay
+  }, [p.events])
+
+  return (
+    <div style={{ ...card, padding: '16px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={() => setOpen((o) => !o)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left' }}>
+          <span style={{ color: mut(0.4), fontSize: 12, width: 12 }}>{open ? '▾' : '▸'}</span>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: colors.text }}>{p.name}</div>
+            <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2 }}>
+              {p.events.length} eventos{p.weeks ? ` · ${p.weeks} semana${p.weeks > 1 ? 's' : ''}` : ''} · desde {p.from}
+            </div>
+          </div>
+        </button>
+        {onDelete && (
+          <button onClick={onDelete} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '6px 11px', color: mut(0.55), cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>
+            Eliminar
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {DAYS.map((dname, wd) => {
+            const items = breakdown[wd]
+            if (!items || items.length === 0) return null
+            return (
+              <div key={wd} style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: mut(0.5), width: 74, flex: 'none' }}>{dname}</span>
+                <span style={{ fontSize: 13, color: colors.text }}>{items.join(' · ')}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---------- Modal: programar semana ----------
 function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose: () => void; onDone: (n: number) => void }) {
+  const [name, setName] = useState('')
   const [pattern, setPattern] = useState<WeekPattern>({})
   const [startMonday, setStartMonday] = useState(mondayOf(todayISO()))
   const [weeks, setWeeks] = useState('4')
@@ -140,22 +218,20 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
       return { ...prev, [day]: next }
     })
   }
+  const setEntryTitle = (day: number, type: EventType, title: string) => {
+    setPattern((prev) => ({ ...prev, [day]: (prev[day] || []).map((x) => (x.type === type ? { ...x, title } : x)) }))
+  }
   const has = (day: number, type: EventType) => (pattern[day] || []).some((x) => x.type === type)
 
   const generate = async () => {
     const w = parseInt(weeks, 10)
-    if (!w || w < 1) {
-      setErr('Indica cuántas semanas repetir.')
-      return
-    }
-    if (Object.values(pattern).every((l) => !l || l.length === 0)) {
-      setErr('Marca al menos un evento en la semana.')
-      return
-    }
+    if (!name.trim()) return setErr('Ponle un nombre al programa.')
+    if (!w || w < 1) return setErr('Indica cuántas semanas repetir.')
+    if (Object.values(pattern).every((l) => !l || l.length === 0)) return setErr('Marca al menos un evento en la semana.')
     setBusy(true)
     setErr(null)
     try {
-      const n = await generateProgram(clientId, pattern, startMonday, w)
+      const n = await generateProgram(clientId, pattern, startMonday, w, name.trim())
       onDone(n)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo generar.')
@@ -169,7 +245,10 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
     setSaveName('')
     listTemplates().then(setTemplates).catch(() => {})
   }
-  const applyTemplate = (t: ProgramTemplate) => setPattern(t.pattern)
+  const applyTemplate = (t: ProgramTemplate) => {
+    setPattern(t.pattern)
+    if (!name.trim()) setName(t.name)
+  }
   const removeTemplate = async (t: ProgramTemplate) => {
     await deleteTemplate(t.id)
     setTemplates((s) => s.filter((x) => x.id !== t.id))
@@ -178,6 +257,11 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
   return (
     <Modal title="Programar semana" onClose={onClose}>
       <div style={{ maxHeight: '64vh', overflowY: 'auto', paddingRight: 4 }} className="om-scroll">
+        <label style={{ display: 'block', marginBottom: 14 }}>
+          <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>NOMBRE DEL PROGRAMA</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Bloque fuerza · Semana tipo" style={fieldStyle} />
+        </label>
+
         {templates.length > 0 && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>PLANTILLAS GUARDADAS</div>
@@ -192,29 +276,41 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
           </div>
         )}
 
-        <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 8 }}>MARCA LOS EVENTOS DE CADA DÍA</div>
+        <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 8 }}>EVENTOS DE CADA DÍA</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {DAYS.map((dname, day) => (
-            <div key={day} style={{ background: colors.surface2, borderRadius: 12, padding: '10px 12px' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>{dname}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {EVENT_ORDER.map((type) => {
-                  const on = has(day, type)
-                  const cfg = EVENT_TYPES[type]
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => toggle(day, type)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: on ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${on ? cfg.color : 'rgba(255,255,255,0.12)'}`, borderRadius: 999, padding: '5px 10px', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, color: on ? colors.text : mut(0.55), cursor: 'pointer' }}
-                    >
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: cfg.color }} />
-                      {cfg.label}
-                    </button>
-                  )
-                })}
+          {DAYS.map((dname, day) => {
+            const active = pattern[day] || []
+            return (
+              <div key={day} style={{ background: colors.surface2, borderRadius: 12, padding: '10px 12px' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>{dname}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {EVENT_ORDER.map((type) => {
+                    const on = has(day, type)
+                    const cfg = EVENT_TYPES[type]
+                    return (
+                      <button key={type} onClick={() => toggle(day, type)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: on ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${on ? cfg.color : 'rgba(255,255,255,0.12)'}`, borderRadius: 999, padding: '5px 10px', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, color: on ? colors.text : mut(0.55), cursor: 'pointer' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: cfg.color }} />
+                        {cfg.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {active.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                    {active.map((e) => (
+                      <input
+                        key={e.type}
+                        value={e.title ?? ''}
+                        onChange={(ev) => setEntryTitle(day, e.type, ev.target.value)}
+                        placeholder={`${EVENT_TYPES[e.type].label}: nombre (opcional, ej: Entrenamiento de fuerza)`}
+                        style={{ ...fieldStyle, background: '#0e0e0e', fontSize: 12.5, padding: '9px 11px' }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
@@ -229,14 +325,14 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <input value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="Guardar como plantilla…" style={{ ...fieldStyle, flex: 1 }} />
+          <input value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="Guardar patrón como plantilla…" style={{ ...fieldStyle, flex: 1 }} />
           <button onClick={doSave} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '0 16px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Guardar</button>
         </div>
       </div>
 
       {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 12 }}>{err}</div>}
       <button onClick={generate} disabled={busy} style={{ width: '100%', marginTop: 14, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-        {busy ? 'Generando…' : 'Generar eventos'}
+        {busy ? 'Generando…' : 'Generar programa'}
       </button>
     </Modal>
   )

@@ -5,13 +5,15 @@ import {
   listPerimeters,
   listWeights,
   updateProfile,
+  PERIMETER_FIELDS,
   type PerimeterLog,
   type Profile,
   type WeightLog,
 } from '../../lib/db'
-import { perimeterRows, weightChart } from '../../lib/metrics'
+import { METRIC_OPTIONS, perimeterRows, perimeterSeries, shortDate, weightSeries } from '../../lib/metrics'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
 import Modal from '../Modal'
+import MetricChart from '../MetricChart'
 import ProgressPhotos from '../ProgressPhotos'
 import ClienteAgenda from './ClienteAgenda'
 import ClienteDocumentos from './ClienteDocumentos'
@@ -201,7 +203,8 @@ function HeaderStat({ label, value, color }: { label: string; value: string; col
 }
 
 function Evolucion({ weights, perims, target }: { weights: WeightLog[]; perims: PerimeterLog[]; target: number | null }) {
-  const chart = weightChart(weights, 700, 240, 18, 30)
+  const [metric, setMetric] = useState('weight')
+  const [showAll, setShowAll] = useState(false)
   const rows = perimeterRows(perims)
   const first = weights.length ? Number(weights[0].weight) : null
   const current = weights.length ? Number(weights[weights.length - 1].weight) : null
@@ -211,35 +214,41 @@ function Evolucion({ weights, perims, target }: { weights: WeightLog[]; perims: 
       ? Math.max(0, Math.min(100, Math.round(((first - current) / (first - target)) * 100)))
       : null
 
+  const opt = METRIC_OPTIONS.find((m) => m.key === metric) ?? METRIC_OPTIONS[0]
+  const series = metric === 'weight' ? weightSeries(weights) : perimeterSeries(perims, metric)
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 16 }}>
       <div style={{ ...card, padding: 22 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>Evolución de peso</div>
-        <div style={{ fontSize: 11, color: mut(0.4), marginTop: 2, marginBottom: 16 }}>kg · registrado por el cliente</div>
-        {chart ? (
-          <svg viewBox="0 0 700 240" style={{ width: '100%', height: 280, display: 'block' }}>
-            <defs>
-              <linearGradient id="wg2" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="rgba(219,24,9,0.35)" />
-                <stop offset="1" stopColor="rgba(219,24,9,0)" />
-              </linearGradient>
-            </defs>
-            <path d={chart.area} fill="url(#wg2)" />
-            <path d={chart.line} fill="none" stroke={colors.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-            {chart.pts.map((pt, i) => (
-              <circle key={i} cx={pt.cx} cy={pt.cy} r={4.5} fill={colors.surface1} stroke={colors.accent} strokeWidth={2.5} />
-            ))}
-            {chart.pts.map((pt, i) => (
-              <text key={i} x={pt.cx} y={234} fill={mut(0.4)} fontSize={13} textAnchor="middle" fontFamily="Montserrat">
-                {pt.label}
-              </text>
-            ))}
-          </svg>
-        ) : (
-          <div style={{ fontSize: 13, color: mut(0.4), padding: '30px 0' }}>
-            Este cliente todavía no ha registrado suficientes pesos para mostrar la gráfica.
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Evolución · {opt.label}</div>
+            <div style={{ fontSize: 11, color: mut(0.4), marginTop: 2 }}>{opt.unit} · registrado por el cliente</div>
           </div>
-        )}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {METRIC_OPTIONS.map((m) => {
+              const active = m.key === metric
+              return (
+                <button
+                  key={m.key}
+                  onClick={() => setMetric(m.key)}
+                  style={{ fontSize: 11, fontWeight: 600, background: active ? m.color : colors.surface2, color: active ? '#fff' : mut(0.6), border: active ? 'none' : '1px solid rgba(255,255,255,0.08)', padding: '6px 11px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  {m.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <MetricChart points={series} color={opt.color} unit={opt.unit} height={240} />
+
+        <button
+          onClick={() => setShowAll((s) => !s)}
+          style={{ marginTop: 14, background: 'none', border: 'none', color: colors.accent, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+        >
+          {showAll ? '▾ Ocultar todos los registros' : '▸ Ver todos los registros'}
+        </button>
+        {showAll && <AllRecords weights={weights} perims={perims} />}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -259,7 +268,7 @@ function Evolucion({ weights, perims, target }: { weights: WeightLog[]; perims: 
           </div>
         </div>
         <div style={{ ...card, padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 13 }}>Perímetros</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 13 }}>Perímetros (último)</div>
           {rows.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {rows.map((p) => (
@@ -276,6 +285,60 @@ function Evolucion({ weights, perims, target }: { weights: WeightLog[]; perims: 
             <div style={{ fontSize: 12.5, color: mut(0.4) }}>Sin perímetros registrados aún.</div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Tabla con TODOS los registros (peso y perímetros) por fecha.
+function AllRecords({ weights, perims }: { weights: WeightLog[]; perims: PerimeterLog[] }) {
+  const th: React.CSSProperties = { fontSize: 10.5, color: mut(0.4), fontWeight: 600, textAlign: 'right', padding: '6px 8px', whiteSpace: 'nowrap' }
+  const td: React.CSSProperties = { fontSize: 12, textAlign: 'right', padding: '7px 8px', whiteSpace: 'nowrap' }
+  const wDesc = [...weights].reverse()
+  const pDesc = [...perims].reverse()
+  return (
+    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Peso corporal</div>
+        {wDesc.length === 0 ? (
+          <div style={{ fontSize: 12, color: mut(0.4) }}>Sin registros.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {wDesc.map((w) => (
+              <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12.5 }}>
+                <span style={{ color: mut(0.6) }}>{shortDate(w.log_date)}</span>
+                <span style={{ fontWeight: 600 }}>{Number(w.weight)} kg</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ overflowX: 'auto' }} className="om-scroll">
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Perímetros (cm)</div>
+        {pDesc.length === 0 ? (
+          <div style={{ fontSize: 12, color: mut(0.4) }}>Sin registros.</div>
+        ) : (
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, textAlign: 'left' }}>Fecha</th>
+                {PERIMETER_FIELDS.map((f) => (
+                  <th key={f.key} style={th}>{f.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pDesc.map((p) => (
+                <tr key={p.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{shortDate(p.log_date)}</td>
+                  {PERIMETER_FIELDS.map((f) => (
+                    <td key={f.key} style={td}>{(p[f.key] as number | null) ?? '—'}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
