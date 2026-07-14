@@ -3,7 +3,8 @@ import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
 import { useAuth } from '../../lib/auth'
 import { listNotifications, type NotificationItem } from '../../lib/messages'
-import { Bell, User, Pulse, BarChart, Calendar, FileIcon, Clipboard } from '../icons'
+import { Bell, User, Pulse, BarChart, Calendar, FileIcon, Clipboard, Gear } from '../icons'
+import Settings from '../Settings'
 import Perfil from './Perfil'
 import Metricas from './Metricas'
 import Analisis from './Analisis'
@@ -36,6 +37,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   const [openFormType, setOpenFormType] = useState<'reporte' | 'cambio' | null>(null)
   const [messages, setMessages] = useState<NotificationItem[]>([])
   const [showNotif, setShowNotif] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const loadMessages = () => {
     listNotifications(profile).then(setMessages).catch(() => {})
@@ -109,11 +111,8 @@ export default function ClientApp({ profile, onSignOut }: Props) {
                 </span>
               )}
             </div>
-            <IconCircle onClick={onSignOut} title="Cerrar sesión">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F5F5F5" strokeWidth="1.8">
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-                <path d="M16 17l5-5-5-5M21 12H9" />
-              </svg>
+            <IconCircle onClick={() => setShowSettings(true)} title="Ajustes">
+              <Gear size={18} />
             </IconCircle>
           </div>
         </div>
@@ -167,6 +166,8 @@ export default function ClientApp({ profile, onSignOut }: Props) {
           }}
         />
       )}
+
+      {showSettings && <Settings profile={profile} onSignOut={onSignOut} onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
-import { Bell } from '../icons'
+import { Bell, Gear } from '../icons'
+import Settings from '../Settings'
 import Resumen from './Resumen'
 import Clientes from './Clientes'
 import ClienteDetalle from './ClienteDetalle'
@@ -21,6 +22,7 @@ function initials(name: string | null): string {
 }
 
 export default function TrainerApp({ profile, onSignOut }: Props) {
+  const [showSettings, setShowSettings] = useState(false)
   const [tView, setTView] = useState<TrainerView>('clientes')
   const [tTab, setTTab] = useState<TrainerTab>('evolucion')
   const [selClientId, setSelClientId] = useState<string | null>(null)
@@ -84,11 +86,11 @@ export default function TrainerApp({ profile, onSignOut }: Props) {
             <span style={{ fontSize: 13, fontWeight: 600 }}>{profile.full_name || 'Entrenador'}</span>
           </div>
           <button
-            onClick={onSignOut}
-            title="Cerrar sesión"
-            style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '9px 12px', color: mut(0.6), fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+            onClick={() => setShowSettings(true)}
+            title="Ajustes"
+            style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '9px 11px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}
           >
-            Salir
+            <Gear size={18} stroke={mut(0.7)} />
           </button>
         </div>
       </div>
@@ -99,6 +101,8 @@ export default function TrainerApp({ profile, onSignOut }: Props) {
       {tView === 'cliente' && selClientId && (
         <ClienteDetalle clientId={selClientId} tTab={tTab} setTTab={setTTab} goClientes={() => setTView('clientes')} />
       )}
+
+      {showSettings && <Settings profile={profile} onSignOut={onSignOut} onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

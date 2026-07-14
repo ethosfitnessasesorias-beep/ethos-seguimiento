@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { colors, mut } from './theme'
 import { useAuth } from './lib/auth'
 import { upsertProfile } from './lib/db'
@@ -19,8 +19,15 @@ function clearInviteParam() {
 export default function App() {
   const { loading, session, profile, refreshProfile, signOut } = useAuth()
   const [inviteToken, setInviteToken] = useState<string | null>(readInviteToken)
+  const [splashDone, setSplashDone] = useState(false)
 
-  if (loading) return <Splash />
+  // La animación de inicio se muestra al menos ~1,6 s en la primera carga.
+  useEffect(() => {
+    const t = setTimeout(() => setSplashDone(true), 1600)
+    return () => clearTimeout(t)
+  }, [])
+
+  if (loading || !splashDone) return <Splash />
 
   // Registro por invitación (enlace ?invite=…)
   if (!session && inviteToken) {
@@ -59,9 +66,13 @@ export default function App() {
 
 function Splash() {
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-      <img src="/assets/ethos-logo.png" alt="ETHOS GYM" style={{ height: 46, opacity: 0.9 }} />
-      <div style={{ fontSize: 12, color: mut(0.4), letterSpacing: 2 }}>Cargando…</div>
+    <div className="splash">
+      <div className="splash-logo-wrap">
+        <div className="splash-glow" />
+        <img className="splash-logo" src="/assets/ethos-logo.png" alt="ETHOS GYM" />
+      </div>
+      <div className="splash-title">ETHOS GYM · SEGUIMIENTO</div>
+      <div className="splash-bar" />
     </div>
   )
 }

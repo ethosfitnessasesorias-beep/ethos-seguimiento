@@ -22,6 +22,20 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return arr
 }
 
+/** Cancela la suscripción push de este dispositivo. */
+export async function disablePush(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    if (sub) {
+      await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+      await sub.unsubscribe()
+    }
+  } catch {
+    // ignorar
+  }
+}
+
 export type EnableResult = 'ok' | 'denied' | 'unsupported' | 'error'
 
 /** Pide permiso y suscribe el navegador del cliente a las notificaciones push. */
