@@ -1,20 +1,22 @@
 import { useState } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
-import { Bell, User, Pulse, BarChart, Calendar, FileIcon } from '../icons'
+import { Bell, User, Pulse, BarChart, Calendar, FileIcon, Clipboard } from '../icons'
 import Perfil from './Perfil'
 import Metricas from './Metricas'
 import Analisis from './Analisis'
 import Agenda from './Agenda'
 import Documentos from './Documentos'
+import Formularios from './Formularios'
 
-export type ClientTab = 'perfil' | 'metricas' | 'analisis' | 'calendario' | 'documentos'
+export type ClientTab = 'perfil' | 'metricas' | 'analisis' | 'calendario' | 'formularios' | 'documentos'
 
 const titles: Record<ClientTab, string> = {
   perfil: 'Perfil',
   metricas: 'Métricas',
   analisis: 'Análisis',
   calendario: 'Agenda',
+  formularios: 'Formularios',
   documentos: 'Documentos',
 }
 
@@ -33,6 +35,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
     { key: 'metricas', label: 'Métricas', icon: <Pulse /> },
     { key: 'analisis', label: 'Análisis', icon: <BarChart /> },
     { key: 'calendario', label: 'Agenda', icon: <Calendar /> },
+    { key: 'formularios', label: 'Forms', icon: <Clipboard /> },
     { key: 'documentos', label: 'Docs', icon: <FileIcon size={22} stroke="currentColor" /> },
   ]
 
@@ -94,6 +97,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
           {cTab === 'metricas' && <Metricas clientId={profile.id} />}
           {cTab === 'analisis' && <Analisis />}
           {cTab === 'calendario' && <Agenda calDay={calDay} setCalDay={setCalDay} />}
+          {cTab === 'formularios' && <Formularios profile={profile} />}
           {cTab === 'documentos' && <Documentos />}
         </div>
 
@@ -102,8 +106,8 @@ export default function ClientApp({ profile, onSignOut }: Props) {
           style={{
             flex: 'none',
             display: 'grid',
-            gridTemplateColumns: 'repeat(5,1fr)',
-            padding: '10px 8px calc(14px + env(safe-area-inset-bottom))',
+            gridTemplateColumns: 'repeat(6,1fr)',
+            padding: '10px 4px calc(14px + env(safe-area-inset-bottom))',
             background: 'rgba(13,13,13,0.92)',
             backdropFilter: 'blur(12px)',
             borderTop: '1px solid rgba(255,255,255,0.07)',

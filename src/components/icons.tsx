@@ -91,3 +91,11 @@ export const Chevron = ({ size = 18, stroke = 'rgba(245,245,245,0.35)', strokeWi
     <path d="M9 18l6-6-6-6" />
   </svg>
 )
+
+export const Clipboard = ({ size = 22, stroke = 'currentColor', strokeWidth = 1.9, style }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={strokeWidth} style={style}>
+    <rect x="8" y="2" width="8" height="4" rx="1" />
+    <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+    <path d="M9 12h6M9 16h6" />
+  </svg>
+)

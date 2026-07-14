@@ -145,3 +145,29 @@ drop policy if exists "trainer reads photo files" on storage.objects;
 create policy "trainer reads photo files" on storage.objects
   for select to authenticated
   using (bucket_id = 'progress-photos' and public.my_role() = 'trainer');
+
+-- ============================================================
+--  Formularios (Fase: Formularios)
+-- ============================================================
+create table if not exists public.form_submissions (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  form_type text not null,
+  form_title text not null,
+  answers jsonb not null,
+  reviewed boolean not null default false,
+  created_at timestamptz not null default now()
+);
+alter table public.form_submissions enable row level security;
+
+drop policy if exists "client writes own forms" on public.form_submissions;
+create policy "client writes own forms" on public.form_submissions
+  for all using (client_id = auth.uid()) with check (client_id = auth.uid());
+
+drop policy if exists "trainer reads forms" on public.form_submissions;
+create policy "trainer reads forms" on public.form_submissions
+  for select using (public.my_role() = 'trainer');
+
+drop policy if exists "trainer updates forms" on public.form_submissions;
+create policy "trainer updates forms" on public.form_submissions
+  for update using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');

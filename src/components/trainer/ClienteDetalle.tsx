@@ -10,6 +10,7 @@ import {
   type WeightLog,
 } from '../../lib/db'
 import { perimeterRows, weightChart } from '../../lib/metrics'
+import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
 import Modal from '../Modal'
 import ProgressPhotos from '../ProgressPhotos'
 import type { TrainerTab } from './TrainerApp'
@@ -126,10 +127,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
           <ProgressPhotos clientId={clientId} columns={4} />
         </div>
       ) : (
-        <ComingSoon
-          title="Formularios"
-          text="Aquí verás las respuestas del cliente a los formularios (reporte semanal, cambio de planificación…). Se conectará en una fase posterior."
-        />
+        <TrainerForms clientId={clientId} />
       )}
 
       {editing && profile && (
@@ -284,11 +282,71 @@ function Row({ label, value, valueColor, bold }: { label: string; value: string;
   )
 }
 
-function ComingSoon({ title, text }: { title: string; text: string }) {
+// ---------- Formularios (respuestas del cliente) ----------
+function TrainerForms({ clientId }: { clientId: string }) {
+  const [subs, setSubs] = useState<FormSubmission[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const reload = () => {
+    setLoading(true)
+    listSubmissions(clientId)
+      .then(setSubs)
+      .finally(() => setLoading(false))
+  }
+  useEffect(reload, [clientId])
+
+  const toggle = async (s: FormSubmission) => {
+    await setReviewed(s.id, !s.reviewed)
+    reload()
+  }
+
+  if (loading) return <div style={{ fontSize: 13, color: mut(0.4), padding: 20 }}>Cargando formularios…</div>
+  if (subs.length === 0) {
+    return (
+      <div style={{ ...card, border: '1px dashed rgba(255,255,255,0.12)', padding: '40px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Sin formularios todavía</div>
+        <div style={{ fontSize: 13, color: mut(0.5), lineHeight: 1.6, maxWidth: 460, margin: '0 auto' }}>
+          Cuando el cliente rellene un reporte o un cambio de planificación desde su app, aparecerá aquí.
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ ...card, border: '1px dashed rgba(255,255,255,0.12)', padding: '40px 24px', textAlign: 'center' }}>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
-      <div style={{ fontSize: 13, color: mut(0.5), lineHeight: 1.6, maxWidth: 460, margin: '0 auto' }}>{text}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {subs.map((f) => (
+        <div key={f.id} style={{ ...card, padding: '20px 22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>{f.form_title}</span>
+            <span style={{ fontSize: 11, color: mut(0.45) }}>{f.created_at.slice(0, 10)}</span>
+            <button
+              onClick={() => toggle(f)}
+              style={{
+                marginLeft: 'auto',
+                fontSize: 10.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+                color: f.reviewed ? colors.green : colors.accent,
+                background: f.reviewed ? 'rgba(74,222,128,0.12)' : 'rgba(219,24,9,0.14)',
+                border: 'none',
+                padding: '4px 11px',
+                borderRadius: 999,
+                fontFamily: 'inherit',
+              }}
+            >
+              {f.reviewed ? '✓ Revisado' : 'Marcar revisado'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {f.answers.map((qa, j) => (
+              <div key={j}>
+                <div style={{ fontSize: 12, color: mut(0.5), marginBottom: 3 }}>{qa.q}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.5 }}>{qa.a || '—'}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
