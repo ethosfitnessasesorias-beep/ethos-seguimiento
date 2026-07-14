@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#080808;font-family:'Montserrat',system-ui,sans-serif;color:#F5F5F5;-webkit-font-smoothing:antialiased}
+  a{color:#db1809;text-decoration:none}
+  a:hover{color:#f0331f}
+  .om-scroll::-webkit-scrollbar{width:8px;height:8px}
+  .om-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.09);border-radius:8px}
+  .om-scroll::-webkit-scrollbar-track{background:transparent}
+</style>
+<script src="image-slot.js"></script>
+</helmet>
+
+<div style="min-height:100vh;background:radial-gradient(1200px 700px at 50% -10%, #161616 0%, #080808 55%);padding:96px 0 60px;">
+
+  <!-- ===== MODE SWITCHER ===== -->
+  <div style="position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:14px;background:rgba(17,17,17,0.82);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.09);border-radius:999px;padding:6px 8px 6px 16px;box-shadow:0 12px 40px rgba(0,0,0,0.55);">
+    <img src="assets/ethos-logo.png" alt="ETHOS GYM" style="height:26px;width:auto;opacity:0.95;"/>
+    <div style="width:1px;height:22px;background:rgba(255,255,255,0.12);"></div>
+    <div style="display:flex;gap:4px;background:#0d0d0d;border-radius:999px;padding:4px;">
+      <button onClick="{{showClient}}" style="{{clientBtnStyle}}">Cliente</button>
+      <button onClick="{{showTrainer}}" style="{{trainerBtnStyle}}">Entrenador</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- ==================  CLIENTE (móvil)  ======================= -->
+  <!-- ============================================================ -->
+  <sc-if value="{{isClient}}" hint-placeholder-val="{{true}}">
+  <div style="display:flex;justify-content:center;">
+    <div style="width:392px;height:812px;background:#080808;border:10px solid #1c1c1c;border-radius:52px;box-shadow:0 30px 90px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.04);overflow:hidden;position:relative;display:flex;flex-direction:column;">
+
+      <!-- status bar -->
+      <div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:14px 26px 6px;font-size:13px;font-weight:600;color:#F5F5F5;">
+        <span>9:41</span>
+        <div style="width:110px;height:26px;background:#080808;"></div>
+        <span style="letter-spacing:1px;">5G ▪ 100%</span>
+      </div>
+
+      <!-- app header -->
+      <div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:8px 22px 14px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <img src="assets/ethos-logo.png" style="height:30px;width:auto;"/>
+          <div style="line-height:1.05;">
+            <div style="font-size:9px;letter-spacing:2.5px;color:rgba(245,245,245,0.45);font-weight:600;">ETHOS GYM</div>
+            <div style="font-size:15px;font-weight:700;">{{screenTitle}}</div>
+          </div>
+        </div>
+        <div style="width:38px;height:38px;border-radius:50%;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F5F5F5" stroke-width="1.8"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+        </div>
+      </div>
+
+      <!-- scroll body -->
+      <div class="om-scroll" style="flex:1;overflow-y:auto;padding:4px 18px 26px;">
+
+        <!-- ---------- PERFIL ---------- -->
+        <sc-if value="{{sPerfil}}" hint-placeholder-val="{{true}}">
+        <div>
+          <div style="display:flex;align-items:center;gap:15px;margin-bottom:20px;">
+            <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#db1809,#7a0d04);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;box-shadow:0 8px 24px rgba(219,24,9,0.3);">MR</div>
+            <div>
+              <div style="font-size:22px;font-weight:700;">Marco Ríos</div>
+              <div style="font-size:12.5px;color:rgba(245,245,245,0.5);margin-top:3px;">34 años · Plan Definición</div>
+              <div style="display:inline-block;margin-top:7px;font-size:10px;font-weight:600;letter-spacing:.5px;color:#4ade80;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);padding:3px 9px;border-radius:999px;white-space:nowrap;">● Activo</div>
+            </div>
+          </div>
+
+          <div style="font-size:11px;letter-spacing:1.5px;color:rgba(245,245,245,0.4);font-weight:600;margin:14px 4px 9px;">DATOS DE CONTACTO</div>
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#db1809" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
+              <div><div style="font-size:10px;color:rgba(245,245,245,0.4);">Email</div><div style="font-size:13.5px;font-weight:500;">marco.rios@correo.com</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#db1809" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3-8.6A2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.6a2 2 0 01-.5 2.1L8.1 9.9a16 16 0 006 6l1.5-1.1a2 2 0 012.1-.5c.8.3 1.7.5 2.6.6a2 2 0 011.7 2z"/></svg>
+              <div><div style="font-size:10px;color:rgba(245,245,245,0.4);">Teléfono</div><div style="font-size:13.5px;font-weight:500;">+34 600 12 34 56</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:13px;padding:14px 16px;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#db1809" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <div><div style="font-size:10px;color:rgba(245,245,245,0.4);">Ciudad</div><div style="font-size:13.5px;font-weight:500;">Valencia, España</div></div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:16px;">
+            <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:14px 10px;text-align:center;"><div style="font-size:20px;font-weight:700;">178<span style="font-size:11px;font-weight:500;color:rgba(245,245,245,0.5);"> cm</span></div><div style="font-size:10px;color:rgba(245,245,245,0.45);margin-top:2px;">Altura</div></div>
+            <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:14px 10px;text-align:center;"><div style="font-size:20px;font-weight:700;">83.6<span style="font-size:11px;font-weight:500;color:rgba(245,245,245,0.5);"> kg</span></div><div style="font-size:10px;color:rgba(245,245,245,0.45);margin-top:2px;">Peso actual</div></div>
+            <div style="background:#111111;border:1px solid rgba(219,24,9,0.35);border-radius:14px;padding:14px 10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#db1809;">80<span style="font-size:11px;font-weight:500;color:rgba(219,24,9,0.7);"> kg</span></div><div style="font-size:10px;color:rgba(245,245,245,0.45);margin-top:2px;">Objetivo</div></div>
+          </div>
+
+          <div style="font-size:11px;letter-spacing:1.5px;color:rgba(245,245,245,0.4);font-weight:600;margin:20px 4px 9px;">PERFIL DE LESIONES</div>
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:15px 16px;">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <span style="font-size:11.5px;font-weight:500;background:rgba(219,24,9,0.12);border:1px solid rgba(219,24,9,0.3);color:#f5a99f;padding:5px 11px;border-radius:999px;">Hombro derecho · impingement</span>
+              <span style="font-size:11.5px;font-weight:500;background:rgba(219,24,9,0.12);border:1px solid rgba(219,24,9,0.3);color:#f5a99f;padding:5px 11px;border-radius:999px;">Lumbalgia leve</span>
+            </div>
+            <div style="font-size:12px;color:rgba(245,245,245,0.55);margin-top:11px;line-height:1.5;">Evitar press militar con barra. Trabajo de core y movilidad de cadera 2×/sem.</div>
+          </div>
+
+          <div style="font-size:11px;letter-spacing:1.5px;color:rgba(245,245,245,0.4);font-weight:600;margin:18px 4px 9px;">PATOLOGÍAS Y ALERGIAS</div>
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:15px 16px;display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:11.5px;font-weight:500;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:999px;">Hipertensión controlada</span>
+            <span style="font-size:11.5px;font-weight:500;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:999px;">Intolerancia a la lactosa</span>
+          </div>
+
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:15px 16px;margin-top:16px;">
+            <div style="font-size:10px;letter-spacing:1.2px;color:rgba(245,245,245,0.4);font-weight:600;margin-bottom:6px;">OBJETIVO PRINCIPAL</div>
+            <div style="font-size:14px;font-weight:600;line-height:1.45;">Reducir grasa corporal manteniendo masa muscular de cara al verano.</div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ---------- MÉTRICAS ---------- -->
+        <sc-if value="{{sMetricas}}" hint-placeholder-val="{{true}}">
+        <div>
+          <!-- peso -->
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:17px 17px 10px;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+              <div>
+                <div style="font-size:12px;color:rgba(245,245,245,0.5);font-weight:500;">Peso corporal</div>
+                <div style="font-size:30px;font-weight:700;margin-top:2px;">83.6<span style="font-size:14px;font-weight:500;color:rgba(245,245,245,0.5);"> kg</span></div>
+              </div>
+              <span style="font-size:12px;font-weight:600;color:#4ade80;background:rgba(74,222,128,0.12);padding:4px 9px;border-radius:999px;margin-top:6px;">▼ 4.8 kg</span>
+            </div>
+            <svg viewBox="0 0 320 80" style="width:100%;height:64px;margin-top:6px;display:block;">
+              <path d="{{sp.area}}" fill="rgba(219,24,9,0.14)"/>
+              <path d="{{sp.line}}" fill="none" stroke="#db1809" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <button style="width:100%;margin-top:8px;background:#db1809;color:#fff;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">+ Registrar peso de hoy</button>
+          </div>
+
+          <!-- perimetros -->
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:17px;margin-top:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <div style="font-size:14px;font-weight:700;">Registro de perímetros</div>
+              <span style="font-size:11px;color:rgba(245,245,245,0.4);">últ. 13 Jul</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <sc-for list="{{perimeters}}" as="p" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:13px;color:rgba(245,245,245,0.8);">{{p.name}}</span>
+                  <div style="display:flex;align-items:baseline;gap:9px;">
+                    <span style="font-size:15px;font-weight:600;">{{p.v}}<span style="font-size:10px;color:rgba(245,245,245,0.4);"> cm</span></span>
+                    <span style="font-size:11px;font-weight:600;color:{{p.dColor}};min-width:44px;text-align:right;">{{p.delta}}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <button style="width:100%;margin-top:12px;background:#1A1A1A;color:#F5F5F5;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:11px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Registrar perímetros</button>
+          </div>
+
+          <!-- composicion -->
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:17px;margin-top:14px;">
+            <div style="font-size:14px;font-weight:700;">Composición corporal</div>
+            <div style="font-size:11px;color:rgba(245,245,245,0.4);margin:3px 0 15px;">Estimada según perímetros y peso</div>
+            <div style="margin-bottom:15px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;"><span style="color:rgba(245,245,245,0.7);">Grasa corporal</span><span style="font-weight:600;">18% <span style="color:#4ade80;font-weight:500;">(−4)</span></span></div>
+              <div style="height:9px;background:#1A1A1A;border-radius:999px;overflow:hidden;"><div style="width:18%;height:100%;background:#f5a623;border-radius:999px;"></div></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;"><span style="color:rgba(245,245,245,0.7);">Masa muscular</span><span style="font-weight:600;">42% <span style="color:#4ade80;font-weight:500;">(+2)</span></span></div>
+              <div style="height:9px;background:#1A1A1A;border-radius:999px;overflow:hidden;"><div style="width:42%;height:100%;background:#db1809;border-radius:999px;"></div></div>
+            </div>
+          </div>
+
+          <!-- registro fotografico -->
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:17px;margin-top:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;">
+              <div style="font-size:14px;font-weight:700;">Registro fotográfico</div>
+              <span style="font-size:11px;color:#db1809;font-weight:600;">Ver todo</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+              <sc-for list="{{clientPhotos}}" as="ph" hint-placeholder-count="3">
+                <div style="position:relative;aspect-ratio:3/4;border-radius:12px;overflow:hidden;">
+                  <image-slot id="{{ph.id}}" shape="rounded" radius="12" fit="cover" placeholder="Foto"></image-slot>
+                  <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 8px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.75));font-size:9.5px;font-weight:600;pointer-events:none;">{{ph.date}}</div>
+                </div>
+              </sc-for>
+            </div>
+            <button style="width:100%;margin-top:12px;background:#1A1A1A;color:#F5F5F5;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:11px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">+ Añadir foto de progreso</button>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ---------- ANÁLISIS ---------- -->
+        <sc-if value="{{sAnalisis}}" hint-placeholder-val="{{true}}">
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="font-size:12px;color:rgba(245,245,245,0.5);">Todos los resultados</div>
+            <span style="font-size:11px;font-weight:600;background:#1A1A1A;border:1px solid rgba(255,255,255,0.1);padding:6px 11px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              01 Abr – 13 Jul
+            </span>
+          </div>
+
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:17px;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:2px;">Peso corporal</div>
+            <div style="font-size:11px;color:rgba(245,245,245,0.4);margin-bottom:8px;">kg · últimos 4 meses</div>
+            <svg viewBox="0 0 700 240" style="width:100%;height:180px;display:block;">
+              <defs><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(219,24,9,0.35)"/><stop offset="1" stop-color="rgba(219,24,9,0)"/></linearGradient></defs>
+              <path d="{{wc.area}}" fill="url(#wg)"/>
+              <path d="{{wc.line}}" fill="none" stroke="#db1809" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              <sc-for list="{{wc.pts}}" as="pt" hint-placeholder-count="7">
+                <circle cx="{{pt.cx}}" cy="{{pt.cy}}" r="4.5" fill="#080808" stroke="#db1809" stroke-width="2.5"/>
+              </sc-for>
+              <sc-for list="{{wc.pts}}" as="pt" hint-placeholder-count="7">
+                <text x="{{pt.cx}}" y="234" fill="rgba(245,245,245,0.4)" font-size="13" text-anchor="middle" font-family="Montserrat">{{pt.label}}</text>
+              </sc-for>
+            </svg>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;">
+              <div style="background:#1A1A1A;border-radius:12px;padding:11px;text-align:center;"><div style="font-size:10px;color:rgba(245,245,245,0.45);">Inicial</div><div style="font-size:17px;font-weight:700;margin-top:2px;">88.4</div></div>
+              <div style="background:#1A1A1A;border-radius:12px;padding:11px;text-align:center;"><div style="font-size:10px;color:rgba(245,245,245,0.45);">Actual</div><div style="font-size:17px;font-weight:700;margin-top:2px;">83.6</div></div>
+              <div style="background:rgba(219,24,9,0.1);border:1px solid rgba(219,24,9,0.3);border-radius:12px;padding:11px;text-align:center;"><div style="font-size:10px;color:rgba(245,245,245,0.45);">Objetivo</div><div style="font-size:17px;font-weight:700;margin-top:2px;color:#db1809;">80.0</div></div>
+            </div>
+          </div>
+
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:17px;margin-top:14px;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:2px;">Cintura</div>
+            <div style="font-size:11px;color:rgba(245,245,245,0.4);margin-bottom:8px;">cm · tendencia</div>
+            <svg viewBox="0 0 700 200" style="width:100%;height:120px;display:block;">
+              <path d="{{wa.area}}" fill="rgba(245,166,35,0.13)"/>
+              <path d="{{wa.line}}" fill="none" stroke="#f5a623" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              <sc-for list="{{wa.pts}}" as="pt" hint-placeholder-count="5">
+                <circle cx="{{pt.cx}}" cy="{{pt.cy}}" r="4" fill="#080808" stroke="#f5a623" stroke-width="2.5"/>
+              </sc-for>
+            </svg>
+          </div>
+
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:17px;margin-top:14px;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:13px;">Cambio por perímetro</div>
+            <div style="display:flex;flex-direction:column;gap:11px;">
+              <sc-for list="{{perimeters}}" as="p" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:12px;color:rgba(245,245,245,0.7);width:74px;flex:none;">{{p.name}}</span>
+                  <div style="flex:1;height:7px;background:#1A1A1A;border-radius:999px;overflow:hidden;"><div style="width:{{p.barW}};height:100%;background:{{p.dColor}};border-radius:999px;"></div></div>
+                  <span style="font-size:11px;font-weight:600;color:{{p.dColor}};width:44px;text-align:right;flex:none;">{{p.delta}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ---------- CALENDARIO ---------- -->
+        <sc-if value="{{sCalendario}}" hint-placeholder-val="{{true}}">
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button style="width:32px;height:32px;border-radius:9px;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);color:#F5F5F5;cursor:pointer;font-size:14px;">‹</button>
+              <div style="font-size:16px;font-weight:700;">Julio 2026</div>
+              <button style="width:32px;height:32px;border-radius:9px;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);color:#F5F5F5;cursor:pointer;font-size:14px;">›</button>
+            </div>
+            <button style="font-size:12px;font-weight:600;background:#db1809;color:#fff;border:none;border-radius:9px;padding:7px 13px;cursor:pointer;">Hoy</button>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;">
+            <sc-for list="{{legend}}" as="l" hint-placeholder-count="4">
+              <span style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:rgba(245,245,245,0.65);"><span style="width:9px;height:9px;border-radius:3px;background:{{l.color}};"></span>{{l.label}}</span>
+            </sc-for>
+          </div>
+
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:13px;">
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:6px;">
+              <sc-for list="{{weekdays}}" as="w" hint-placeholder-count="7">
+                <div style="text-align:center;font-size:10px;font-weight:600;color:rgba(245,245,245,0.35);">{{w}}</div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
+              <sc-for list="{{calCells}}" as="c" hint-placeholder-count="42">
+                <button onClick="{{c.onSelect}}" style="aspect-ratio:1/1.15;background:{{c.bg}};border:{{c.border}};border-radius:9px;cursor:pointer;padding:4px 0 0;display:flex;flex-direction:column;align-items:center;gap:3px;">
+                  <span style="font-size:11.5px;font-weight:600;color:{{c.numColor}};">{{c.num}}</span>
+                  <div style="display:flex;gap:2px;">
+                    <sc-for list="{{c.events}}" as="e" hint-placeholder-count="2">
+                      <span style="width:5px;height:5px;border-radius:50%;background:{{e.color}};"></span>
+                    </sc-for>
+                  </div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin:18px 4px 10px;font-size:13px;font-weight:700;">Agenda · {{selDayLabel}}</div>
+          <div style="display:flex;flex-direction:column;gap:9px;">
+            <sc-for list="{{dayAgenda}}" as="a" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:13px;background:#111111;border:1px solid rgba(255,255,255,0.06);border-left:3px solid {{a.color}};border-radius:12px;padding:13px 15px;">
+                <div style="flex:1;"><div style="font-size:13.5px;font-weight:600;">{{a.label}}</div><div style="font-size:11px;color:rgba(245,245,245,0.45);margin-top:2px;">{{a.detail}}</div></div>
+                <span style="font-size:12px;font-weight:600;color:{{a.color}};">{{a.time}}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{noAgenda}}" hint-placeholder-val="{{false}}">
+              <div style="text-align:center;font-size:12px;color:rgba(245,245,245,0.35);padding:22px;background:#111111;border-radius:12px;">Sin eventos este día</div>
+            </sc-if>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ---------- DOCUMENTOS ---------- -->
+        <sc-if value="{{sDocumentos}}" hint-placeholder-val="{{true}}">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;background:#111111;border:1px solid rgba(255,255,255,0.08);border-radius:13px;padding:11px 14px;margin-bottom:14px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,0.4)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <span style="font-size:13px;color:rgba(245,245,245,0.4);">Buscar documento…</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;" class="om-scroll">
+            <span style="flex:none;font-size:11.5px;font-weight:600;background:#db1809;color:#fff;padding:7px 14px;border-radius:999px;">Todos</span>
+            <span style="flex:none;font-size:11.5px;font-weight:600;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);padding:7px 14px;border-radius:999px;">Entrenamiento</span>
+            <span style="flex:none;font-size:11.5px;font-weight:600;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);padding:7px 14px;border-radius:999px;">Nutrición</span>
+            <span style="flex:none;font-size:11.5px;font-weight:600;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);padding:7px 14px;border-radius:999px;">Guías</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <sc-for list="{{documents}}" as="d" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:13px;background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:14px 15px;">
+                <div style="width:42px;height:42px;flex:none;border-radius:11px;background:{{d.bg}};display:flex;align-items:center;justify-content:center;">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{d.color}}" stroke-width="1.9"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13.5px;font-weight:600;">{{d.name}}</div>
+                  <div style="font-size:11px;color:rgba(245,245,245,0.45);margin-top:3px;"><span style="color:{{d.color}};font-weight:600;">{{d.type}}</span> · {{d.date}} · {{d.size}}</div>
+                </div>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,0.5)" stroke-width="1.9"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+      </div>
+
+      <!-- bottom tab bar -->
+      <div style="flex:none;display:grid;grid-template-columns:repeat(5,1fr);padding:10px 8px 22px;background:rgba(13,13,13,0.92);backdrop-filter:blur(12px);border-top:1px solid rgba(255,255,255,0.07);">
+        <button onClick="{{nav.perfil}}" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:{{tabColors.perfil}};">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <span style="font-size:9.5px;font-weight:600;">Perfil</span>
+        </button>
+        <button onClick="{{nav.metricas}}" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:{{tabColors.metricas}};">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+          <span style="font-size:9.5px;font-weight:600;">Métricas</span>
+        </button>
+        <button onClick="{{nav.analisis}}" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:{{tabColors.analisis}};">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>
+          <span style="font-size:9.5px;font-weight:600;">Análisis</span>
+        </button>
+        <button onClick="{{nav.calendario}}" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:{{tabColors.calendario}};">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span style="font-size:9.5px;font-weight:600;">Agenda</span>
+        </button>
+        <button onClick="{{nav.documentos}}" style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:{{tabColors.documentos}};">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          <span style="font-size:9.5px;font-weight:600;">Docs</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============================================================ -->
+  <!-- ==================  ENTRENADOR (escritorio)  =============== -->
+  <!-- ============================================================ -->
+  <sc-if value="{{isTrainer}}" hint-placeholder-val="{{false}}">
+  <div style="max-width:1280px;margin:0 auto;padding:0 22px;">
+
+    <!-- top nav -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#111111;border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:12px 20px;margin-bottom:22px;">
+      <div style="display:flex;align-items:center;gap:26px;">
+        <img src="assets/ethos-logo.png" style="height:34px;width:auto;"/>
+        <div style="display:flex;gap:6px;">
+          <button onClick="{{tvResumen}}" style="background:{{navResumenBg}};border:none;border-radius:10px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:600;color:{{navResumenColor}};cursor:pointer;">Resumen</button>
+          <button onClick="{{tvClientes}}" style="background:{{navClientesBg}};border:none;border-radius:10px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:600;color:{{navClientesColor}};cursor:pointer;">Clientes</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,0.55)" stroke-width="1.8"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+        <div style="display:flex;align-items:center;gap:9px;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);border-radius:999px;padding:5px 12px 5px 5px;">
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#db1809,#7a0d04);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">LS</div>
+          <span style="font-size:13px;font-weight:600;">Luis Silva</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- RESUMEN ---------- -->
+    <sc-if value="{{tShowResumen}}" hint-placeholder-val="{{false}}">
+    <div>
+      <div style="font-size:26px;font-weight:700;margin-bottom:4px;">Resumen</div>
+      <div style="font-size:13.5px;color:rgba(245,245,245,0.5);margin-bottom:22px;">Buen día, Luis. Esto es lo que pasa con tus clientes hoy.</div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px;">
+        <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:18px 20px;">
+          <div style="font-size:12px;color:rgba(245,245,245,0.5);">Clientes activos</div>
+          <div style="font-size:30px;font-weight:700;margin-top:6px;">6</div>
+        </div>
+        <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:18px 20px;">
+          <div style="font-size:12px;color:rgba(245,245,245,0.5);">Adherencia media</div>
+          <div style="font-size:30px;font-weight:700;margin-top:6px;color:#f5a623;">73%</div>
+        </div>
+        <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:18px 20px;">
+          <div style="font-size:12px;color:rgba(245,245,245,0.5);">Tareas pendientes</div>
+          <div style="font-size:30px;font-weight:700;margin-top:6px;">12</div>
+        </div>
+        <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:18px 20px;">
+          <div style="font-size:12px;color:rgba(245,245,245,0.5);">Formularios sin revisar</div>
+          <div style="font-size:30px;font-weight:700;margin-top:6px;color:#db1809;">3</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;">
+        <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;">
+          <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Actividad reciente</div>
+          <div style="display:flex;flex-direction:column;">
+            <sc-for list="{{activity}}" as="a" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="width:36px;height:36px;flex:none;border-radius:50%;background:#1A1A1A;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:rgba(245,245,245,0.7);">{{a.ini}}</div>
+                <div style="flex:1;"><div style="font-size:13px;"><span style="font-weight:600;">{{a.name}}</span> <span style="color:rgba(245,245,245,0.55);">{{a.action}}</span></div>
+                <div style="margin-top:3px;"><span style="font-size:10px;font-weight:600;color:{{a.color}};background:{{a.bg}};padding:2px 8px;border-radius:999px;">{{a.tag}}</span></div></div>
+                <span style="font-size:11px;color:rgba(245,245,245,0.4);flex:none;">{{a.time}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;">
+            <div style="font-size:15px;font-weight:700;margin-bottom:14px;">Revisar cumplimiento</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <sc-for list="{{cumplimiento}}" as="c" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:11px;">
+                  <div style="width:30px;height:30px;flex:none;border-radius:50%;background:#1A1A1A;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:rgba(245,245,245,0.7);">{{c.ini}}</div>
+                  <span style="flex:1;font-size:13px;font-weight:500;">{{c.name}}</span>
+                  <span style="font-size:12px;font-weight:700;color:{{c.color}};">{{c.adh}}%</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;">
+            <div style="font-size:15px;font-weight:700;margin-bottom:14px;">Próximos eventos</div>
+            <div style="display:flex;flex-direction:column;gap:11px;">
+              <sc-for list="{{upcoming}}" as="u" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:12px;border-left:3px solid {{u.color}};padding-left:11px;">
+                  <div style="flex:1;"><div style="font-size:13px;font-weight:600;">{{u.name}}</div><div style="font-size:11px;color:rgba(245,245,245,0.45);margin-top:2px;">{{u.label}}</div></div>
+                  <span style="font-size:11px;font-weight:600;color:rgba(245,245,245,0.6);">{{u.when}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ---------- CLIENTES (lista) ---------- -->
+    <sc-if value="{{tShowClientes}}" hint-placeholder-val="{{false}}">
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <div><div style="font-size:26px;font-weight:700;">Mis clientes</div><div style="font-size:13px;color:rgba(245,245,245,0.5);margin-top:2px;">6 clientes activos</div></div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="display:flex;align-items:center;gap:9px;background:#111111;border:1px solid rgba(255,255,255,0.08);border-radius:11px;padding:9px 14px;width:240px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,0.4)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <span style="font-size:13px;color:rgba(245,245,245,0.4);">Buscar cliente…</span>
+          </div>
+          <button style="background:#db1809;color:#fff;border:none;border-radius:11px;padding:10px 16px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">+ Añadir cliente</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+        <sc-for list="{{clients}}" as="c" hint-placeholder-count="6">
+          <div onClick="{{c.onOpen}}" style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:18px;cursor:pointer;transition:border-color .15s;" style-hover="border-color:rgba(219,24,9,0.5);background:#141414;">
+            <div style="display:flex;align-items:center;gap:13px;margin-bottom:15px;">
+              <div style="width:46px;height:46px;flex:none;border-radius:50%;background:linear-gradient(135deg,#2a2a2a,#161616);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;">{{c.initials}}</div>
+              <div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">{{c.name}}</div><div style="font-size:11.5px;color:rgba(245,245,245,0.5);margin-top:2px;">Plan {{c.plan}}</div></div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,0.35)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px;"><span style="color:rgba(245,245,245,0.5);">Adherencia</span><span style="font-weight:700;color:{{c.color}};">{{c.adherence}}%</span></div>
+            <div style="height:7px;background:#1A1A1A;border-radius:999px;overflow:hidden;margin-bottom:14px;"><div style="width:{{c.adhW}};height:100%;background:{{c.color}};border-radius:999px;"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(245,245,245,0.5);border-top:1px solid rgba(255,255,255,0.05);padding-top:11px;">
+              <span>{{c.last}}</span><span style="color:rgba(245,245,245,0.7);font-weight:500;">{{c.next}}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ---------- CLIENTE DETALLE ---------- -->
+    <sc-if value="{{tShowCliente}}" hint-placeholder-val="{{false}}">
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:18px;">
+        <span onClick="{{tvClientes}}" style="color:rgba(245,245,245,0.5);cursor:pointer;">Clientes</span>
+        <span style="color:rgba(245,245,245,0.3);">/</span>
+        <span style="color:#db1809;font-weight:600;">{{sel.name}}</span>
+      </div>
+
+      <!-- client header -->
+      <div style="display:flex;align-items:center;gap:18px;background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:22px 24px;margin-bottom:20px;">
+        <div style="width:64px;height:64px;flex:none;border-radius:50%;background:linear-gradient(135deg,#db1809,#7a0d04);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;">{{sel.initials}}</div>
+        <div style="flex:1;">
+          <div style="font-size:22px;font-weight:700;">{{sel.name}}</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:5px;">
+            <span style="font-size:11px;font-weight:600;background:rgba(219,24,9,0.12);border:1px solid rgba(219,24,9,0.3);color:#f5a99f;padding:3px 10px;border-radius:999px;">Plan {{sel.plan}}</span>
+            <span style="font-size:12px;color:rgba(245,245,245,0.5);">Alta: 12 May 2026</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:26px;">
+          <div style="text-align:center;"><div style="font-size:11px;color:rgba(245,245,245,0.45);">Peso actual</div><div style="font-size:20px;font-weight:700;margin-top:2px;">83.6</div></div>
+          <div style="text-align:center;"><div style="font-size:11px;color:rgba(245,245,245,0.45);">Objetivo</div><div style="font-size:20px;font-weight:700;margin-top:2px;color:#db1809;">80.0</div></div>
+          <div style="text-align:center;"><div style="font-size:11px;color:rgba(245,245,245,0.45);">Adherencia</div><div style="font-size:20px;font-weight:700;margin-top:2px;color:{{sel.color}};">{{sel.adherence}}%</div></div>
+        </div>
+      </div>
+
+      <!-- sub tabs -->
+      <div style="display:flex;gap:8px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:22px;">
+        <button onClick="{{ttEvo}}" style="background:none;border:none;border-bottom:2px solid {{ttEvoBorder}};color:{{ttEvoColor}};font-family:inherit;font-size:14px;font-weight:600;padding:11px 6px;cursor:pointer;">Evolución</button>
+        <button onClick="{{ttFotos}}" style="background:none;border:none;border-bottom:2px solid {{ttFotosBorder}};color:{{ttFotosColor}};font-family:inherit;font-size:14px;font-weight:600;padding:11px 6px;cursor:pointer;">Control fotográfico</button>
+        <button onClick="{{ttForms}}" style="background:none;border:none;border-bottom:2px solid {{ttFormsBorder}};color:{{ttFormsColor}};font-family:inherit;font-size:14px;font-weight:600;padding:11px 6px;cursor:pointer;">Formularios</button>
+      </div>
+
+      <!-- Evolución -->
+      <sc-if value="{{tsEvo}}" hint-placeholder-val="{{false}}">
+      <div style="display:grid;grid-template-columns:1.7fr 1fr;gap:16px;">
+        <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:22px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div><div style="font-size:16px;font-weight:700;">Evolución de peso</div><div style="font-size:11px;color:rgba(245,245,245,0.4);margin-top:2px;">kg · Abr – Jul 2026</div></div>
+            <div style="display:flex;gap:6px;">
+              <span style="font-size:11px;font-weight:600;background:#db1809;color:#fff;padding:6px 12px;border-radius:999px;">Peso</span>
+              <span style="font-size:11px;font-weight:600;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);padding:6px 12px;border-radius:999px;color:rgba(245,245,245,0.6);">Cintura</span>
+              <span style="font-size:11px;font-weight:600;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);padding:6px 12px;border-radius:999px;color:rgba(245,245,245,0.6);">Grasa</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 700 240" style="width:100%;height:280px;display:block;">
+            <defs><linearGradient id="wg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(219,24,9,0.35)"/><stop offset="1" stop-color="rgba(219,24,9,0)"/></linearGradient></defs>
+            <path d="{{wc.area}}" fill="url(#wg2)"/>
+            <path d="{{wc.line}}" fill="none" stroke="#db1809" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <sc-for list="{{wc.pts}}" as="pt" hint-placeholder-count="7">
+              <circle cx="{{pt.cx}}" cy="{{pt.cy}}" r="4.5" fill="#111111" stroke="#db1809" stroke-width="2.5"/>
+            </sc-for>
+            <sc-for list="{{wc.pts}}" as="pt" hint-placeholder-count="7">
+              <text x="{{pt.cx}}" y="234" fill="rgba(245,245,245,0.4)" font-size="13" text-anchor="middle" font-family="Montserrat">{{pt.label}}</text>
+            </sc-for>
+          </svg>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:14px;">Resumen</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:rgba(245,245,245,0.55);">Peso inicial</span><span style="font-weight:600;">88.4 kg</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:rgba(245,245,245,0.55);">Peso actual</span><span style="font-weight:600;">83.6 kg</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:rgba(245,245,245,0.55);">Objetivo</span><span style="font-weight:600;color:#db1809;">80.0 kg</span></div>
+              <div style="height:1px;background:rgba(255,255,255,0.06);"></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:rgba(245,245,245,0.55);">Progreso</span><span style="font-weight:700;color:#4ade80;">−4.8 kg (57%)</span></div>
+            </div>
+          </div>
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:13px;">Perímetros</div>
+            <div style="display:flex;flex-direction:column;">
+              <sc-for list="{{perimeters}}" as="p" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:12.5px;color:rgba(245,245,245,0.75);">{{p.name}}</span>
+                  <div style="display:flex;align-items:baseline;gap:9px;"><span style="font-size:13.5px;font-weight:600;">{{p.v}} cm</span><span style="font-size:11px;font-weight:600;color:{{p.dColor}};width:42px;text-align:right;">{{p.delta}}</span></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- Control fotográfico -->
+      <sc-if value="{{tsFotos}}" hint-placeholder-val="{{false}}">
+      <div>
+        <div style="font-size:13px;color:rgba(245,245,245,0.5);margin-bottom:16px;">Fotos de progreso subidas por {{sel.name}}, ordenadas por fecha.</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+          <sc-for list="{{trainerPhotos}}" as="ph" hint-placeholder-count="4">
+            <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;overflow:hidden;">
+              <div style="position:relative;aspect-ratio:3/4;">
+                <image-slot id="{{ph.id}}" shape="rect" fit="cover" placeholder="Foto de progreso"></image-slot>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;">
+                <span style="font-size:12.5px;font-weight:600;">{{ph.date}}</span>
+                <span style="font-size:10px;font-weight:600;color:#db1809;background:rgba(219,24,9,0.12);padding:3px 9px;border-radius:999px;">{{ph.tag}}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- Formularios -->
+      <sc-if value="{{tsForms}}" hint-placeholder-val="{{false}}">
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <sc-for list="{{forms}}" as="f" hint-placeholder-count="4">
+          <div style="background:#111111;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px 22px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+              <span style="width:10px;height:10px;border-radius:3px;background:{{f.color}};"></span>
+              <span style="font-size:15px;font-weight:700;">{{f.type}}</span>
+              <span style="font-size:11px;color:rgba(245,245,245,0.45);">{{f.date}}</span>
+              <span style="margin-left:auto;font-size:10px;font-weight:600;color:{{f.stColor}};background:{{f.stBg}};padding:3px 10px;border-radius:999px;">{{f.status}}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <sc-for list="{{f.q}}" as="qa" hint-placeholder-count="3">
+                <div>
+                  <div style="font-size:12px;color:rgba(245,245,245,0.5);margin-bottom:3px;">{{qa.q}}</div>
+                  <div style="font-size:13.5px;font-weight:500;">{{qa.a}}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+    </div>
+    </sc-if>
+
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { mode:'client', cTab:'perfil', tView:'resumen', tTab:'evolucion', calDay:13, selIdx:0 };
+
+  chart(series, w, h, top, bot){
+    const padX=10;
+    const vals=series.map(p=>p.v);
+    const min=Math.min(...vals), max=Math.max(...vals);
+    const span=(max-min)||1, lo=min-span*0.4, hi=max+span*0.4;
+    const X=i=> +(padX + i*(w-2*padX)/(series.length-1)).toFixed(1);
+    const Y=v=> +(top + (1-(v-lo)/(hi-lo))*(h-top-bot)).toFixed(1);
+    const pts=series.map((p,i)=>({cx:X(i),cy:Y(p.v),v:p.v,label:p.m}));
+    const line=pts.map((p,i)=>(i?'L':'M')+p.cx+' '+p.cy).join(' ');
+    const area='M'+pts[0].cx+' '+(h-bot)+' '+pts.map(p=>'L'+p.cx+' '+p.cy).join(' ')+' L'+pts[pts.length-1].cx+' '+(h-bot)+' Z';
+    return {line, area, pts};
+  }
+
+  renderVals(){
+    const S=this.state;
+    const isClient = S.mode==='client';
+    const seg=(active)=> active
+      ? 'background:#db1809;color:#fff;border:none;border-radius:999px;padding:7px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;'
+      : 'background:transparent;color:rgba(245,245,245,0.55);border:none;border-radius:999px;padding:7px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;';
+
+    // ---- charts ----
+    const weight=[{m:'Abr',v:88.4},{m:'',v:87.6},{m:'May',v:86.5},{m:'',v:85.9},{m:'Jun',v:85.1},{m:'',v:84.4},{m:'Jul',v:83.6}];
+    const wc=this.chart(weight,700,240,18,30);
+    const spSeries=[{v:88.4},{v:87.2},{v:86.1},{v:85},{v:84.2},{v:83.6}];
+    const sp=this.chart(spSeries,320,80,8,10);
+    const waist=[{v:90},{v:88},{v:86},{v:84},{v:82}];
+    const wa=this.chart(waist,700,200,14,20);
+
+    // ---- perimeters ----
+    const rawP=[
+      {name:'Cintura', v:82, prev:84},
+      {name:'Cadera', v:98, prev:99},
+      {name:'Pecho', v:104, prev:103},
+      {name:'Brazo', v:38, prev:37.5},
+      {name:'Pierna', v:58, prev:57.5},
+      {name:'Cuello', v:39, prev:39.5},
+    ];
+    const maxAbs=Math.max(...rawP.map(p=>Math.abs(p.v-p.prev)));
+    const perimeters=rawP.map(p=>{
+      const d=+(p.v-p.prev).toFixed(1);
+      const down=d<=0;
+      return {...p, delta:(d>0?'+':'')+d+' cm', dColor: down?'#4ade80':'#f5a623', barW: (Math.abs(d)/maxAbs*100).toFixed(0)+'%'};
+    });
+
+    // ---- photos ----
+    const clientPhotos=[{id:'cph1',date:'12 May'},{id:'cph2',date:'12 Jun'},{id:'cph3',date:'13 Jul'}];
+    const trainerPhotos=[{id:'tph1',date:'12 May 2026',tag:'Inicio'},{id:'tph2',date:'01 Jun 2026',tag:'Sem 3'},{id:'tph3',date:'22 Jun 2026',tag:'Sem 6'},{id:'tph4',date:'13 Jul 2026',tag:'Sem 9'}];
+
+    // ---- documents ----
+    const documents=[
+      {name:'Plan de entrenamiento · Bloque 3', type:'Entrenamiento', date:'08 Jul 2026', size:'2.4 MB', color:'#db1809', bg:'rgba(219,24,9,0.12)'},
+      {name:'Plan de nutrición · Definición', type:'Nutrición', date:'01 Jul 2026', size:'1.1 MB', color:'#2dd4bf', bg:'rgba(45,212,191,0.12)'},
+      {name:'Contextualización inicial', type:'Guía', date:'12 May 2026', size:'640 KB', color:'#a78bfa', bg:'rgba(167,139,250,0.12)'},
+      {name:'Guía de suplementación', type:'Guía', date:'12 May 2026', size:'820 KB', color:'#a78bfa', bg:'rgba(167,139,250,0.12)'},
+      {name:'Checklist de hábitos', type:'Nutrición', date:'20 Jun 2026', size:'310 KB', color:'#2dd4bf', bg:'rgba(45,212,191,0.12)'},
+    ];
+
+    // ---- calendar ----
+    const evTypes={
+      entreno:{label:'Entrenamiento', color:'#db1809', detail:'Rutina full body · 60 min', time:'18:30'},
+      cardio:{label:'Objetivo cardio', color:'#f5a623', detail:'45 min zona 2 · 8.000 pasos', time:'07:30'},
+      control:{label:'Form. de control', color:'#2dd4bf', detail:'Rellenar antes de las 22:00', time:'Hoy'},
+      plan:{label:'Cambio de planificación', color:'#a78bfa', detail:'Revisión de bloque', time:'Hoy'},
+    };
+    const evByDay={1:['entreno','cardio'],2:['entreno'],3:['cardio'],6:['entreno','control'],8:['entreno'],9:['cardio'],10:['entreno'],13:['entreno','cardio'],15:['control'],16:['entreno'],17:['cardio'],20:['entreno','plan'],22:['entreno'],23:['cardio'],24:['entreno'],27:['entreno','control'],29:['cardio'],30:['entreno']};
+    const startDow=(new Date(2026,6,1).getDay()+6)%7;
+    const dim=31, today=13;
+    const calCells=[];
+    for(let i=0;i<42;i++){
+      const day=i-startDow+1;
+      const inM= day>=1 && day<=dim;
+      const evs= inM && evByDay[day] ? evByDay[day].map(k=>({color:evTypes[k].color})) : [];
+      const sel= inM && day===S.calDay;
+      calCells.push({
+        key:'cell'+i,
+        num: inM? String(day):'',
+        events: evs.slice(0,3),
+        onSelect: inM ? (()=>this.setState({calDay:day})) : (()=>{}),
+        bg: sel? 'rgba(219,24,9,0.16)' : 'transparent',
+        border: sel? '1px solid #db1809' : (inM && day===today ? '1px solid rgba(255,255,255,0.14)' : '1px solid transparent'),
+        numColor: inM ? (sel? '#F5F5F5' : 'rgba(245,245,245,0.82)') : 'transparent',
+      });
+    }
+    const dayKeys=evByDay[S.calDay]||[];
+    const dayAgenda=dayKeys.map(k=>({label:evTypes[k].label, color:evTypes[k].color, detail:evTypes[k].detail, time:evTypes[k].time}));
+    const selDayLabel=S.calDay+' de julio';
+
+    // ---- trainer clients ----
+    const adhColor=a=> a>=80?'#4ade80': a>=60?'#f5a623':'#db1809';
+    const rawC=[
+      {name:'Marco Ríos', initials:'MR', plan:'Definición', adherence:92, last:'Hoy · Métricas', next:'Form. control · Mañana'},
+      {name:'Lucía Prieto', initials:'LP', plan:'Recomposición', adherence:78, last:'Ayer · Foto progreso', next:'Entreno · Hoy'},
+      {name:'Diego Navarro', initials:'DN', plan:'Volumen', adherence:64, last:'Hace 3 días', next:'Cambio plan · 15 Jul'},
+      {name:'Sara Vidal', initials:'SV', plan:'Pérdida grasa', adherence:41, last:'Hace 9 días', next:'Sin tareas'},
+      {name:'Iván Castro', initials:'IC', plan:'Fuerza', adherence:88, last:'Hoy · Reporte', next:'Cardio · Hoy'},
+      {name:'Nerea Gil', initials:'NG', plan:'Definición', adherence:73, last:'Ayer', next:'Form. control · 14 Jul'},
+    ];
+    const clients=rawC.map((c,idx)=>({...c, color:adhColor(c.adherence), adhW:c.adherence+'%', onOpen:(()=>this.setState({selIdx:idx, tView:'cliente', tTab:'evolucion'}))}));
+    const sel=clients[S.selIdx]||clients[0];
+
+    // ---- trainer resumen ----
+    const activity=[
+      {name:'Marco Ríos', action:'completó Reporte semanal', tag:'Formulario', color:'#2dd4bf', bg:'rgba(45,212,191,0.12)', time:'11:09', ini:'MR'},
+      {name:'Nerea Gil', action:'registró Métricas', tag:'Evolución', color:'#db1809', bg:'rgba(219,24,9,0.12)', time:'10:57', ini:'NG'},
+      {name:'Lucía Prieto', action:'subió Foto de progreso', tag:'Evolución', color:'#db1809', bg:'rgba(219,24,9,0.12)', time:'09:51', ini:'LP'},
+      {name:'Iván Castro', action:'completó Form. de control', tag:'Formulario', color:'#2dd4bf', bg:'rgba(45,212,191,0.12)', time:'09:08', ini:'IC'},
+      {name:'Diego Navarro', action:'solicitó Cambio de planificación', tag:'Formulario', color:'#a78bfa', bg:'rgba(167,139,250,0.12)', time:'08:20', ini:'DN'},
+    ];
+    const cumplimiento=[
+      {name:'Sara Vidal', ini:'SV', adh:41, color:'#db1809'},
+      {name:'Diego Navarro', ini:'DN', adh:64, color:'#f5a623'},
+      {name:'Nerea Gil', ini:'NG', adh:73, color:'#f5a623'},
+    ];
+    const upcoming=[
+      {name:'Marco Ríos', label:'Form. de control', when:'Mañana', color:'#2dd4bf'},
+      {name:'Diego Navarro', label:'Cambio de planificación', when:'15 Jul', color:'#a78bfa'},
+      {name:'Iván Castro', label:'Objetivo cardio', when:'Hoy', color:'#f5a623'},
+    ];
+
+    // ---- forms ----
+    const stMap={Nuevo:{c:'#db1809',b:'rgba(219,24,9,0.14)'}, Revisado:{c:'rgba(245,245,245,0.55)',b:'#1A1A1A'}};
+    const rawForms=[
+      {type:'Reporte semanal', date:'13 Jul 2026', color:'#2dd4bf', status:'Nuevo', q:[{q:'¿Cómo te has sentido esta semana?',a:'Con energía, buena adherencia salvo el sábado.'},{q:'Nivel de estrés (1-10)',a:'4'},{q:'Horas de sueño medias',a:'7.2 h'}]},
+      {type:'Cambio de planificación', date:'06 Jul 2026', color:'#a78bfa', status:'Revisado', q:[{q:'¿Qué ejercicio te genera molestias?',a:'Press militar (hombro derecho).'},{q:'Disponibilidad semanal',a:'5 días'},{q:'Objetivo prioritario',a:'Reducir cintura'}]},
+      {type:'DOMS', date:'04 Jul 2026', color:'#f5a623', status:'Revisado', q:[{q:'Grupos con más agujetas',a:'Cuádriceps y glúteo'},{q:'Intensidad percibida (1-10)',a:'7'}]},
+      {type:'Form. de control', date:'29 Jun 2026', color:'#2dd4bf', status:'Revisado', q:[{q:'Peso de la mañana',a:'83.6 kg'},{q:'Adherencia a la dieta',a:'90%'},{q:'Pasos diarios medios',a:'9.400'}]},
+    ];
+    const forms=rawForms.map(f=>({...f, stColor:stMap[f.status].c, stBg:stMap[f.status].b}));
+
+    // ---- client tab colors ----
+    const mut='rgba(245,245,245,0.45)';
+    const tc=k=> S.cTab===k? '#db1809' : mut;
+    const tabColors={perfil:tc('perfil'), metricas:tc('metricas'), analisis:tc('analisis'), calendario:tc('calendario'), documentos:tc('documentos')};
+    const titles={perfil:'Perfil', metricas:'Métricas', analisis:'Análisis', calendario:'Agenda', documentos:'Documentos'};
+
+    // ---- trainer nav colors ----
+    const navA=(v)=> S.tView===v;
+    const resumenA=navA('resumen'), clientesA=(navA('clientes')||navA('cliente'));
+
+    // ---- trainer sub-tab ----
+    const tt=k=> S.tTab===k;
+
+    return {
+      isClient, isTrainer:!isClient,
+      showClient:()=>this.setState({mode:'client'}),
+      showTrainer:()=>this.setState({mode:'trainer'}),
+      clientBtnStyle: seg(isClient),
+      trainerBtnStyle: seg(!isClient),
+
+      screenTitle: titles[S.cTab],
+      tabColors,
+      nav:{
+        perfil:()=>this.setState({cTab:'perfil'}),
+        metricas:()=>this.setState({cTab:'metricas'}),
+        analisis:()=>this.setState({cTab:'analisis'}),
+        calendario:()=>this.setState({cTab:'calendario'}),
+        documentos:()=>this.setState({cTab:'documentos'}),
+      },
+      sPerfil:S.cTab==='perfil', sMetricas:S.cTab==='metricas', sAnalisis:S.cTab==='analisis', sCalendario:S.cTab==='calendario', sDocumentos:S.cTab==='documentos',
+
+      wc, sp, wa, perimeters, clientPhotos, trainerPhotos, documents,
+      weekdays:['L','M','X','J','V','S','D'], calCells, dayAgenda, selDayLabel, noAgenda: dayAgenda.length===0,
+      legend:[{label:'Entrenamiento',color:'#db1809'},{label:'Cardio',color:'#f5a623'},{label:'Form. control',color:'#2dd4bf'},{label:'Cambio plan',color:'#a78bfa'}],
+
+      clients, sel, activity, cumplimiento, upcoming, forms,
+
+      tvResumen:()=>this.setState({tView:'resumen'}),
+      tvClientes:()=>this.setState({tView:'clientes'}),
+      navResumenColor: resumenA?'#F5F5F5':'rgba(245,245,245,0.55)',
+      navResumenBg: resumenA?'#1A1A1A':'transparent',
+      navClientesColor: clientesA?'#F5F5F5':'rgba(245,245,245,0.55)',
+      navClientesBg: clientesA?'#1A1A1A':'transparent',
+      tShowResumen:S.tView==='resumen', tShowClientes:S.tView==='clientes', tShowCliente:S.tView==='cliente',
+
+      ttEvo:()=>this.setState({tTab:'evolucion'}),
+      ttFotos:()=>this.setState({tTab:'fotos'}),
+      ttForms:()=>this.setState({tTab:'formularios'}),
+      ttEvoColor: tt('evolucion')?'#F5F5F5':'rgba(245,245,245,0.5)', ttEvoBorder: tt('evolucion')?'#db1809':'transparent',
+      ttFotosColor: tt('fotos')?'#F5F5F5':'rgba(245,245,245,0.5)', ttFotosBorder: tt('fotos')?'#db1809':'transparent',
+      ttFormsColor: tt('formularios')?'#F5F5F5':'rgba(245,245,245,0.5)', ttFormsBorder: tt('formularios')?'#db1809':'transparent',
+      tsEvo:S.tTab==='evolucion', tsFotos:S.tTab==='fotos', tsForms:S.tTab==='formularios',
+    };
+  }
+}
+</script>
+</body>
+</html>
