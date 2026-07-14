@@ -83,6 +83,12 @@ drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
   for update using (auth.uid() = id);
 
+-- El entrenador puede editar la ficha de sus clientes (Fase 2).
+drop policy if exists "trainer updates clients" on public.profiles;
+create policy "trainer updates clients" on public.profiles
+  for update using (public.my_role() = 'trainer' and role = 'client')
+  with check (public.my_role() = 'trainer' and role = 'client');
+
 -- ---------- Políticas: weight_logs ----------
 drop policy if exists "client writes own weights" on public.weight_logs;
 create policy "client writes own weights" on public.weight_logs

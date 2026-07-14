@@ -97,6 +97,8 @@ export async function addWeight(clientId: string, weight: number, logDate?: stri
     ...(logDate ? { log_date: logDate } : {}),
   })
   if (error) throw error
+  // Mantiene el "peso actual" del perfil sincronizado con el último registro.
+  await supabase.from('profiles').update({ current_weight: weight }).eq('id', clientId)
 }
 
 // ---- Perímetros ----

@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { getProfile, listPerimeters, listWeights, type PerimeterLog, type Profile, type WeightLog } from '../../lib/db'
+import {
+  getProfile,
+  listPerimeters,
+  listWeights,
+  updateProfile,
+  type PerimeterLog,
+  type Profile,
+  type WeightLog,
+} from '../../lib/db'
 import { perimeterRows, weightChart } from '../../lib/metrics'
+import Modal from '../Modal'
 import type { TrainerTab } from './TrainerApp'
 
 interface Props {
@@ -22,13 +31,16 @@ function initials(name: string | null): string {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
 }
 
+const dash = (v: unknown, suffix = '') => (v == null || v === '' ? '—' : `${v}${suffix}`)
+
 export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [perims, setPerims] = useState<PerimeterLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true)
     Promise.all([getProfile(clientId), listWeights(clientId), listPerimeters(clientId)])
       .then(([p, w, pr]) => {
@@ -37,10 +49,11 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
         setPerims(pr)
       })
       .finally(() => setLoading(false))
-  }, [clientId])
+  }
+  useEffect(load, [clientId])
 
   const name = profile?.full_name || 'Cliente'
-  const current = weights.length ? Number(weights[weights.length - 1].weight) : null
+  const current = weights.length ? Number(weights[weights.length - 1].weight) : profile?.current_weight ?? null
   const target = profile?.target_weight ?? null
 
   const subTab = (key: TrainerTab, label: string) => {
@@ -65,7 +78,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       </div>
 
       {/* header */}
-      <div style={{ ...card, borderRadius: 18, display: 'flex', alignItems: 'center', gap: 18, padding: '22px 24px', marginBottom: 20 }}>
+      <div style={{ ...card, borderRadius: 18, display: 'flex', alignItems: 'center', gap: 18, padding: '22px 24px', marginBottom: 16 }}>
         <div style={{ width: 64, height: 64, flex: 'none', borderRadius: '50%', background: 'linear-gradient(135deg,#db1809,#7a0d04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700 }}>
           {initials(profile?.full_name ?? null)}
         </div>
@@ -78,14 +91,23 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
             <span style={{ fontSize: 12, color: mut(0.5) }}>{profile?.email || ''}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 26 }}>
+        <div style={{ display: 'flex', gap: 26, alignItems: 'center' }}>
           <HeaderStat label="Peso actual" value={current != null ? String(current) : '—'} />
           <HeaderStat label="Objetivo" value={target != null ? String(target) : '—'} color={colors.accent} />
+          <button
+            onClick={() => setEditing(true)}
+            style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Editar ficha
+          </button>
         </div>
       </div>
 
+      {/* ficha del cliente */}
+      {profile && <FichaCard p={profile} />}
+
       {/* sub tabs */}
-      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: 22 }}>
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '20px 0 22px' }}>
         {subTab('evolucion', 'Evolución')}
         {subTab('fotos', 'Control fotográfico')}
         {subTab('formularios', 'Formularios')}
@@ -105,6 +127,56 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
           }
         />
       )}
+
+      {editing && profile && (
+        <EditClientModal
+          profile={profile}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false)
+            load()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function FichaCard({ p }: { p: Profile }) {
+  const items = [
+    { label: 'Altura', value: dash(p.height_cm, ' cm') },
+    { label: 'Edad', value: dash(p.age, ' años') },
+    { label: 'Teléfono', value: dash(p.phone) },
+    { label: 'Ciudad', value: dash(p.city) },
+  ]
+  return (
+    <div style={{ ...card, padding: '18px 22px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18, marginBottom: 4 }}>
+        {items.map((it) => (
+          <div key={it.label}>
+            <div style={{ fontSize: 10.5, color: mut(0.4), fontWeight: 600, letterSpacing: 0.5 }}>{it.label.toUpperCase()}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginTop: 3 }}>{it.value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginTop: 14 }}>
+        <FichaText label="Lesiones" value={p.injuries} />
+        <FichaText label="Patologías y alergias" value={p.pathologies} />
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <FichaText label="Objetivo principal" value={p.main_goal} />
+      </div>
+    </div>
+  )
+}
+
+function FichaText({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10.5, color: mut(0.4), fontWeight: 600, letterSpacing: 0.5 }}>{label.toUpperCase()}</div>
+      <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4, lineHeight: 1.5, color: value ? mut(0.85) : mut(0.35) }}>
+        {value || 'Sin datos'}
+      </div>
     </div>
   )
 }
@@ -214,5 +286,111 @@ function ComingSoon({ title, text }: { title: string; text: string }) {
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
       <div style={{ fontSize: 13, color: mut(0.5), lineHeight: 1.6, maxWidth: 460, margin: '0 auto' }}>{text}</div>
     </div>
+  )
+}
+
+// ---------- Modal: editar ficha del cliente ----------
+function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({
+    full_name: profile.full_name ?? '',
+    plan: profile.plan ?? '',
+    age: profile.age != null ? String(profile.age) : '',
+    height_cm: profile.height_cm != null ? String(profile.height_cm) : '',
+    target_weight: profile.target_weight != null ? String(profile.target_weight) : '',
+    phone: profile.phone ?? '',
+    city: profile.city ?? '',
+    injuries: profile.injuries ?? '',
+    pathologies: profile.pathologies ?? '',
+    main_goal: profile.main_goal ?? '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const set = (k: keyof typeof f) => (v: string) => setF((s) => ({ ...s, [k]: v }))
+
+  const num = (s: string) => {
+    const n = parseFloat(s.replace(',', '.'))
+    return s.trim() === '' || !isFinite(n) ? null : n
+  }
+  const txt = (s: string) => (s.trim() === '' ? null : s.trim())
+
+  const save = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await updateProfile(profile.id, {
+        full_name: txt(f.full_name),
+        plan: txt(f.plan),
+        age: num(f.age),
+        height_cm: num(f.height_cm),
+        target_weight: num(f.target_weight),
+        phone: txt(f.phone),
+        city: txt(f.city),
+        injuries: txt(f.injuries),
+        pathologies: txt(f.pathologies),
+        main_goal: txt(f.main_goal),
+      })
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title={`Editar ficha · ${profile.full_name || 'Cliente'}`} onClose={onClose}>
+      <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 4 }} className="om-scroll">
+        <Field label="Nombre y apellidos" value={f.full_name} onChange={set('full_name')} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <Field label="Plan" value={f.plan} onChange={set('plan')} placeholder="Definición" />
+          <Field label="Edad" value={f.age} onChange={set('age')} placeholder="34" />
+          <Field label="Altura (cm)" value={f.height_cm} onChange={set('height_cm')} placeholder="178" />
+          <Field label="Peso objetivo (kg)" value={f.target_weight} onChange={set('target_weight')} placeholder="80" />
+          <Field label="Teléfono" value={f.phone} onChange={set('phone')} placeholder="+34 600 12 34 56" />
+          <Field label="Ciudad" value={f.city} onChange={set('city')} placeholder="Valencia" />
+        </div>
+        <Area label="Lesiones" value={f.injuries} onChange={set('injuries')} />
+        <Area label="Patologías y alergias" value={f.pathologies} onChange={set('pathologies')} />
+        <Area label="Objetivo principal" value={f.main_goal} onChange={set('main_goal')} />
+      </div>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button
+        onClick={save}
+        disabled={busy}
+        style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}
+      >
+        {busy ? 'Guardando…' : 'Guardar ficha'}
+      </button>
+    </Modal>
+  )
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  background: colors.surface2,
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: 10,
+  padding: '11px 12px',
+  color: colors.text,
+  fontFamily: 'inherit',
+  fontSize: 14,
+  outline: 'none',
+}
+const labelStyle: React.CSSProperties = { fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', margin: '12px 0 5px' }
+
+function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={labelStyle}>{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={fieldStyle} />
+    </label>
+  )
+}
+
+function Area({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <span style={labelStyle}>{label}</span>
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5 }} />
+    </label>
   )
 }
