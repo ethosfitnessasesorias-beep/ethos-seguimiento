@@ -1,5 +1,6 @@
 // Estimación de composición corporal a partir de peso y perímetros.
 // Grasa: método US Navy (validado). Músculo y hueso: estimaciones.
+import type { PerimeterLog, WeightLog } from './db'
 
 export interface CompositionInput {
   sex: string | null // 'male' | 'female'
@@ -70,4 +71,36 @@ export function computeComposition(input: CompositionInput): CompositionResult |
     boneKg: round1(boneKg),
     leanKg: round1(leanKg),
   }
+}
+
+export interface CompositionPoint extends CompositionResult {
+  date: string
+}
+
+/**
+ * Serie temporal de composición: una entrada por cada registro de perímetros,
+ * emparejado con el peso más reciente hasta esa fecha.
+ */
+export function compositionSeries(
+  sex: string | null,
+  heightCm: number | null,
+  weights: WeightLog[],
+  perims: PerimeterLog[],
+): CompositionPoint[] {
+  const out: CompositionPoint[] = []
+  for (const p of perims) {
+    let w: number | null = null
+    for (const wl of weights) if (wl.log_date <= p.log_date) w = Number(wl.weight)
+    if (w == null && weights.length) w = Number(weights[0].weight)
+    const c = computeComposition({
+      sex,
+      heightCm,
+      weight: w,
+      waist: p.cintura,
+      neck: p.cuello,
+      hip: p.cadera,
+    })
+    if (c.ok) out.push({ ...c, date: p.log_date })
+  }
+  return out
 }

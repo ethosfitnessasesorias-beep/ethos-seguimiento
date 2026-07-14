@@ -20,6 +20,7 @@ export interface Profile {
   pathologies: string | null
   main_goal: string | null
   adherence: number | null
+  messages_read_until: string | null
   created_at: string
 }
 

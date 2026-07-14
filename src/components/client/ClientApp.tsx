@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
 import { useAuth } from '../../lib/auth'
-import { listClientMessages, type Message } from '../../lib/messages'
+import { listNotifications, type NotificationItem } from '../../lib/messages'
 import { Bell, User, Pulse, BarChart, Calendar, FileIcon, Clipboard } from '../icons'
 import Perfil from './Perfil'
 import Metricas from './Metricas'
@@ -32,13 +32,14 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   const { refreshProfile } = useAuth()
   const [cTab, setCTab] = useState<ClientTab>('perfil')
   const [openFormType, setOpenFormType] = useState<'reporte' | 'cambio' | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<NotificationItem[]>([])
   const [showNotif, setShowNotif] = useState(false)
 
   const loadMessages = () => {
-    listClientMessages(profile.id).then(setMessages).catch(() => {})
+    listNotifications(profile).then(setMessages).catch(() => {})
   }
-  useEffect(loadMessages, [profile.id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadMessages, [profile.id, profile.messages_read_until])
   const unread = messages.filter((m) => !m.read).length
 
   const openForm = (formType: 'reporte' | 'cambio') => {
@@ -155,10 +156,10 @@ export default function ClientApp({ profile, onSignOut }: Props) {
       {showNotif && (
         <Notificaciones
           profile={profile}
-          messages={messages}
+          items={messages}
           onClose={() => {
             setShowNotif(false)
-            loadMessages()
+            refreshProfile()
           }}
         />
       )}

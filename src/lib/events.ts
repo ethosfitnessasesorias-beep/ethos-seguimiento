@@ -34,9 +34,21 @@ export interface CalEvent {
   created_at: string
 }
 
-function todayStr(): string {
+export function todayStr(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Día de la semana (0=Lunes … 6=Domingo) de una fecha ISO. */
+export function weekdayOfISO(iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number)
+  return (new Date(y, m - 1, d).getDay() + 6) % 7
+}
+
+/** Lunes de la semana actual. */
+export function mondayOfTodayISO(): string {
+  const t = todayStr()
+  return isoAddDays(t, -weekdayOfISO(t))
 }
 
 /** Marca un evento como hecho / no hecho y recalcula la adherencia. */
@@ -51,18 +63,40 @@ export async function setEventNote(eventId: string, note: string) {
   if (error) throw error
 }
 
-/** Adherencia = eventos completados / eventos ya vencidos (hasta hoy) × 100. */
+export interface AdherenceStats {
+  weekCompleted: number
+  weekTotal: number
+  weekPct: number
+  planCompleted: number
+  planTotal: number
+  planPct: number
+}
+
+/** Cumplimiento semanal (semana actual) y total del plan (todos los eventos). */
+export async function getAdherenceStats(clientId: string): Promise<AdherenceStats> {
+  const { data } = await supabase.from('events').select('completed, event_date').eq('client_id', clientId)
+  const all = data ?? []
+  const monday = mondayOfTodayISO()
+  const sunday = isoAddDays(monday, 6)
+  const week = all.filter((e) => e.event_date >= monday && e.event_date <= sunday)
+  const pct = (c: number, t: number) => (t === 0 ? 0 : Math.round((c / t) * 100))
+  const wc = week.filter((e) => e.completed).length
+  const pc = all.filter((e) => e.completed).length
+  return {
+    weekCompleted: wc,
+    weekTotal: week.length,
+    weekPct: pct(wc, week.length),
+    planCompleted: pc,
+    planTotal: all.length,
+    planPct: pct(pc, all.length),
+  }
+}
+
+/** Recalcula y guarda en el perfil el % total del plan. */
 export async function recomputeAdherence(clientId: string): Promise<number> {
-  const today = todayStr()
-  const { data } = await supabase
-    .from('events')
-    .select('completed, event_date')
-    .eq('client_id', clientId)
-    .lte('event_date', today)
-  const due = data ?? []
-  const pct = due.length === 0 ? 0 : Math.round((due.filter((e) => e.completed).length / due.length) * 100)
-  await supabase.from('profiles').update({ adherence: pct }).eq('id', clientId)
-  return pct
+  const stats = await getAdherenceStats(clientId)
+  await supabase.from('profiles').update({ adherence: stats.planPct }).eq('id', clientId)
+  return stats.planPct
 }
 
 // ---- Utilidades de fecha (seguras, sin dependencias) ----
@@ -86,11 +120,15 @@ export async function listEvents(clientId: string, fromISO: string, toISO: strin
   return (data ?? []) as CalEvent[]
 }
 
-export async function addEvent(clientId: string, e: { event_date: string; type: EventType; time?: string; detail?: string }) {
+export async function addEvent(
+  clientId: string,
+  e: { event_date: string; type: EventType; title?: string; time?: string; detail?: string },
+) {
   const { error } = await supabase.from('events').insert({
     client_id: clientId,
     event_date: e.event_date,
     type: e.type,
+    title: e.title || null,
     time: e.time || null,
     detail: e.detail || null,
   })

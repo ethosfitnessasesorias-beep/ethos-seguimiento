@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import { Mail, Phone, Pin } from '../icons'
 import type { Profile } from '../../lib/db'
+import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 
 const sectionLabel = (mt = 14): React.CSSProperties => ({
   fontSize: 11,
@@ -30,9 +32,30 @@ const dash = (v: unknown, suffix = '') => (v == null || v === '' ? '—' : `${v}
 
 const adhColor = (a: number) => (a >= 80 ? colors.green : a >= 60 ? colors.amber : colors.accent)
 
+function AdhBar({ label, pct, detail }: { label: string; pct: number; detail: string }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+        <span style={{ fontSize: 12, color: mut(0.6), fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 16, fontWeight: 700, color: adhColor(pct) }}>
+          {pct}% <span style={{ fontSize: 10.5, fontWeight: 500, color: mut(0.4) }}>{detail}</span>
+        </span>
+      </div>
+      <div style={{ height: 8, background: colors.surface2, borderRadius: 999, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: adhColor(pct), borderRadius: 999 }} />
+      </div>
+    </div>
+  )
+}
+
 export default function Perfil({ profile }: { profile: Profile }) {
   const p = profile
   const sub = [p.age ? `${p.age} años` : null, p.plan ? `Plan ${p.plan}` : null].filter(Boolean).join(' · ')
+  const [stats, setStats] = useState<AdherenceStats | null>(null)
+
+  useEffect(() => {
+    getAdherenceStats(p.id).then(setStats).catch(() => {})
+  }, [p.id])
 
   return (
     <div>
@@ -94,14 +117,18 @@ export default function Perfil({ profile }: { profile: Profile }) {
 
       {/* cumplimiento del plan */}
       <div style={{ ...card, padding: '15px 16px', marginTop: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: mut(0.6), fontWeight: 500 }}>Cumplimiento del plan</span>
-          <span style={{ fontSize: 18, fontWeight: 700, color: adhColor(p.adherence ?? 0) }}>{p.adherence ?? 0}%</span>
-        </div>
-        <div style={{ height: 8, background: colors.surface2, borderRadius: 999, overflow: 'hidden' }}>
-          <div style={{ width: `${p.adherence ?? 0}%`, height: '100%', background: adhColor(p.adherence ?? 0), borderRadius: 999 }} />
-        </div>
-        <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 7 }}>Según los eventos que marcas como hechos en tu Agenda.</div>
+        <AdhBar
+          label="Cumplimiento · Esta semana"
+          pct={stats?.weekPct ?? 0}
+          detail={stats ? `${stats.weekCompleted}/${stats.weekTotal}` : ''}
+        />
+        <div style={{ height: 14 }} />
+        <AdhBar
+          label="Cumplimiento · Plan completo"
+          pct={stats?.planPct ?? p.adherence ?? 0}
+          detail={stats ? `${stats.planCompleted}/${stats.planTotal}` : ''}
+        />
+        <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 9 }}>Según los eventos que marcas como hechos en tu Agenda.</div>
       </div>
 
       {/* lesiones */}

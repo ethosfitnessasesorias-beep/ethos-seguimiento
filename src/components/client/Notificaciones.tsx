@@ -1,30 +1,30 @@
 import { useEffect } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
-import { markAllRead, personalize, type Message } from '../../lib/messages'
+import { markAllNotificationsRead, personalize, type NotificationItem } from '../../lib/messages'
 import Modal from '../Modal'
 
 interface Props {
   profile: Profile
-  messages: Message[]
+  items: NotificationItem[]
   onClose: () => void
 }
 
-export default function Notificaciones({ profile, messages, onClose }: Props) {
+export default function Notificaciones({ profile, items, onClose }: Props) {
   // Al abrir, marca todo como leído.
   useEffect(() => {
-    if (messages.some((m) => !m.read)) markAllRead(profile.id).catch(() => {})
-  }, [profile.id, messages])
+    if (items.some((m) => !m.read)) markAllNotificationsRead(profile.id).catch(() => {})
+  }, [profile.id, items])
 
   return (
     <Modal title="Notificaciones" onClose={onClose}>
-      {messages.length === 0 ? (
+      {items.length === 0 ? (
         <div style={{ fontSize: 13, color: mut(0.45), textAlign: 'center', padding: '24px 0' }}>
           No tienes mensajes por ahora.
         </div>
       ) : (
         <div style={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }} className="om-scroll">
-          {messages.map((m) => (
+          {items.map((m) => (
             <div
               key={m.id}
               style={{
@@ -35,7 +35,7 @@ export default function Notificaciones({ profile, messages, onClose }: Props) {
               }}
             >
               <div style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.5 }}>{personalize(m.body, profile.full_name)}</div>
-              <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 6 }}>{m.send_date}</div>
+              <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 6 }}>{m.date}</div>
             </div>
           ))}
         </div>

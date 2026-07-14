@@ -11,6 +11,8 @@ import {
   type WeightLog,
 } from '../../lib/db'
 import { METRIC_OPTIONS, perimeterRows, perimeterSeries, shortDate, weightSeries } from '../../lib/metrics'
+import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
+import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
 import Modal from '../Modal'
 import MetricChart from '../MetricChart'
@@ -46,16 +48,18 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [perims, setPerims] = useState<PerimeterLog[]>([])
+  const [stats, setStats] = useState<AdherenceStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
 
   const load = () => {
     setLoading(true)
-    Promise.all([getProfile(clientId), listWeights(clientId), listPerimeters(clientId)])
-      .then(([p, w, pr]) => {
+    Promise.all([getProfile(clientId), listWeights(clientId), listPerimeters(clientId), getAdherenceStats(clientId)])
+      .then(([p, w, pr, st]) => {
         setProfile(p)
         setWeights(w)
         setPerims(pr)
+        setStats(st)
       })
       .finally(() => setLoading(false))
   }
@@ -103,7 +107,8 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
         <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
           <HeaderStat label="Peso actual" value={current != null ? String(current) : '—'} />
           <HeaderStat label="Objetivo" value={target != null ? String(target) : '—'} color={colors.accent} />
-          <HeaderStat label="Cumplimiento" value={`${profile?.adherence ?? 0}%`} color={adhColor(profile?.adherence ?? 0)} />
+          <HeaderStat label="Cumpl. semana" value={`${stats?.weekPct ?? 0}%`} color={adhColor(stats?.weekPct ?? 0)} />
+          <HeaderStat label="Cumpl. plan" value={`${stats?.planPct ?? 0}%`} color={adhColor(stats?.planPct ?? 0)} />
           <button
             onClick={() => setEditing(true)}
             style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
@@ -218,8 +223,20 @@ function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[];
       ? Math.max(0, Math.min(100, Math.round(((first - current) / (first - target)) * 100)))
       : null
 
-  const opt = METRIC_OPTIONS.find((m) => m.key === metric) ?? METRIC_OPTIONS[0]
-  const series = metric === 'weight' ? weightSeries(weights) : perimeterSeries(perims, metric)
+  const COMP_METRICS = [
+    { key: 'fatPct', label: 'Grasa %', unit: '%', color: '#f5a623' },
+    { key: 'muscleKg', label: 'Músculo kg', unit: 'kg', color: '#db1809' },
+    { key: 'boneKg', label: 'Óseo kg', unit: 'kg', color: '#2dd4bf' },
+  ]
+  const allOptions = [...METRIC_OPTIONS, ...COMP_METRICS]
+  const opt = allOptions.find((m) => m.key === metric) ?? allOptions[0]
+  const compSeries = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
+  const isComp = COMP_METRICS.some((c) => c.key === metric)
+  const series = isComp
+    ? compSeries.map((c) => ({ date: c.date, value: c[metric as 'fatPct' | 'muscleKg' | 'boneKg'] }))
+    : metric === 'weight'
+      ? weightSeries(weights)
+      : perimeterSeries(perims, metric)
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 16 }}>
@@ -230,7 +247,7 @@ function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[];
             <div style={{ fontSize: 11, color: mut(0.4), marginTop: 2 }}>{opt.unit} · registrado por el cliente</div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {METRIC_OPTIONS.map((m) => {
+            {allOptions.map((m) => {
               const active = m.key === metric
               return (
                 <button
@@ -252,7 +269,7 @@ function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[];
         >
           {showAll ? '▾ Ocultar todos los registros' : '▸ Ver todos los registros'}
         </button>
-        {showAll && <AllRecords weights={weights} perims={perims} />}
+        {showAll && <AllRecords weights={weights} perims={perims} profile={profile} />}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -304,8 +321,9 @@ function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[];
   )
 }
 
-// Tabla con TODOS los registros (peso y perímetros) por fecha.
-function AllRecords({ weights, perims }: { weights: WeightLog[]; perims: PerimeterLog[] }) {
+// Tabla con TODOS los registros (peso, perímetros y composición) por fecha.
+function AllRecords({ weights, perims, profile }: { weights: WeightLog[]; perims: PerimeterLog[]; profile: Profile | null }) {
+  const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
   const th: React.CSSProperties = { fontSize: 10.5, color: mut(0.4), fontWeight: 600, textAlign: 'right', padding: '6px 8px', whiteSpace: 'nowrap' }
   const td: React.CSSProperties = { fontSize: 12, textAlign: 'right', padding: '7px 8px', whiteSpace: 'nowrap' }
   const wDesc = [...weights].reverse()
@@ -348,6 +366,41 @@ function AllRecords({ weights, perims }: { weights: WeightLog[]; perims: Perimet
                   {PERIMETER_FIELDS.map((f) => (
                     <td key={f.key} style={td}>{(p[f.key] as number | null) ?? '—'}</td>
                   ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <div style={{ overflowX: 'auto' }} className="om-scroll">
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Composición corporal (estimada)</div>
+        {comp.length === 0 ? (
+          <div style={{ fontSize: 12, color: mut(0.4) }}>
+            Sin datos suficientes (requiere sexo y altura en la ficha, y registros con cintura y cuello).
+          </div>
+        ) : (
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, textAlign: 'left' }}>Fecha</th>
+                <th style={th}>Grasa %</th>
+                <th style={th}>Grasa kg</th>
+                <th style={th}>Músculo %</th>
+                <th style={th}>Músculo kg</th>
+                <th style={th}>Óseo %</th>
+                <th style={th}>Óseo kg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...comp].reverse().map((c) => (
+                <tr key={c.date} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{shortDate(c.date)}</td>
+                  <td style={td}>{c.fatPct}</td>
+                  <td style={td}>{c.fatKg}</td>
+                  <td style={td}>{c.musclePct}</td>
+                  <td style={td}>{c.muscleKg}</td>
+                  <td style={td}>{c.bonePct}</td>
+                  <td style={td}>{c.boneKg}</td>
                 </tr>
               ))}
             </tbody>

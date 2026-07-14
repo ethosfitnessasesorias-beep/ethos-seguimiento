@@ -283,3 +283,28 @@ create policy "client reads own messages" on public.messages
 drop policy if exists "client updates own messages" on public.messages;
 create policy "client updates own messages" on public.messages
   for update using (client_id = auth.uid()) with check (client_id = auth.uid());
+
+-- ============================================================
+--  Mensajes recurrentes y lectura de notificaciones
+-- ============================================================
+alter table public.profiles add column if not exists messages_read_until date;
+
+create table if not exists public.message_schedules (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null,
+  weekday int not null default 0,
+  interval_weeks int not null default 1,
+  start_date date not null default current_date,
+  end_date date,
+  created_at timestamptz not null default now()
+);
+alter table public.message_schedules enable row level security;
+
+drop policy if exists "trainer manages schedules" on public.message_schedules;
+create policy "trainer manages schedules" on public.message_schedules
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+drop policy if exists "client reads own schedules" on public.message_schedules;
+create policy "client reads own schedules" on public.message_schedules
+  for select using (client_id = auth.uid());

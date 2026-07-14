@@ -1,9 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { getProfile, listPerimeters, listWeights, PERIMETER_FIELDS, type PerimeterLog, type WeightLog } from '../../lib/db'
+import { getProfile, listPerimeters, listWeights, PERIMETER_FIELDS, type PerimeterLog, type Profile, type WeightLog } from '../../lib/db'
 import { perimeterRows, perimeterSeries, weightSeries } from '../../lib/metrics'
+import { compositionSeries } from '../../lib/composition'
 import MetricChart from '../MetricChart'
 import { Calendar } from '../icons'
+
+export const COMP_OPTIONS = [
+  { key: 'fatPct', label: 'Grasa %', unit: '%', color: '#f5a623' },
+  { key: 'fatKg', label: 'Grasa kg', unit: 'kg', color: '#f5a623' },
+  { key: 'muscleKg', label: 'Músculo kg', unit: 'kg', color: '#db1809' },
+  { key: 'boneKg', label: 'Óseo kg', unit: 'kg', color: '#2dd4bf' },
+] as const
 
 const card: React.CSSProperties = {
   background: colors.surface1,
@@ -15,24 +23,36 @@ const card: React.CSSProperties = {
 export default function Analisis({ clientId }: { clientId: string }) {
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [perims, setPerims] = useState<PerimeterLog[]>([])
-  const [target, setTarget] = useState<number | null>(null)
+  const [prof, setProf] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [perimField, setPerimField] = useState('cintura')
+  const [compKey, setCompKey] = useState<string>('fatPct')
 
   useEffect(() => {
     Promise.all([listWeights(clientId), listPerimeters(clientId), getProfile(clientId)])
-      .then(([w, p, prof]) => {
+      .then(([w, p, pf]) => {
         setWeights(w)
         setPerims(p)
-        setTarget(prof?.target_weight ?? null)
+        setProf(pf)
       })
       .finally(() => setLoading(false))
   }, [clientId])
 
+  const target = prof?.target_weight ?? null
   const first = weights.length ? Number(weights[0].weight) : null
   const current = weights.length ? Number(weights[weights.length - 1].weight) : null
   const rows = perimeterRows(perims)
   const perimLabel = PERIMETER_FIELDS.find((f) => f.key === perimField)?.label ?? 'Perímetro'
+
+  const compSeries = useMemo(
+    () => (prof ? compositionSeries(prof.sex, prof.height_cm, weights, perims) : []),
+    [prof, weights, perims],
+  )
+  const compOpt = COMP_OPTIONS.find((o) => o.key === compKey) ?? COMP_OPTIONS[0]
+  const compPoints = compSeries.map((c) => ({
+    date: c.date,
+    value: c[compOpt.key as 'fatPct' | 'fatKg' | 'muscleKg' | 'boneKg'],
+  }))
 
   if (loading) return <div style={{ fontSize: 13, color: mut(0.4), padding: 20 }}>Cargando análisis…</div>
 
@@ -92,6 +112,33 @@ export default function Analisis({ clientId }: { clientId: string }) {
           })}
         </div>
         <MetricChart points={perimeterSeries(perims, perimField)} color={colors.amber} unit="cm" height={150} showAxis={false} />
+      </div>
+
+      {/* composición corporal · tendencia */}
+      <div style={{ ...card, marginTop: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>Composición corporal</div>
+        <div style={{ fontSize: 11, color: mut(0.4), margin: '2px 0 10px' }}>tendencia estimada</div>
+        <div className="om-scroll" style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto' }}>
+          {COMP_OPTIONS.map((o) => {
+            const active = o.key === compKey
+            return (
+              <button
+                key={o.key}
+                onClick={() => setCompKey(o.key)}
+                style={{ flex: 'none', fontSize: 11, fontWeight: 600, background: active ? o.color : colors.surface2, color: active ? '#0a0a0a' : mut(0.6), border: active ? 'none' : '1px solid rgba(255,255,255,0.08)', padding: '6px 12px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
+        {compPoints.length >= 2 ? (
+          <MetricChart points={compPoints} color={compOpt.color} unit={compOpt.unit} height={150} showAxis={false} />
+        ) : (
+          <div style={{ fontSize: 12, color: mut(0.4), padding: '8px 0' }}>
+            Se necesitan al menos 2 registros de perímetros (con cintura y cuello) y el sexo/altura en tu ficha.
+          </div>
+        )}
       </div>
 
       {/* cambio por perímetro */}

@@ -5,8 +5,9 @@ import { Bell } from '../icons'
 import Resumen from './Resumen'
 import Clientes from './Clientes'
 import ClienteDetalle from './ClienteDetalle'
+import Biblioteca from './Biblioteca'
 
-export type TrainerView = 'resumen' | 'clientes' | 'cliente'
+export type TrainerView = 'resumen' | 'clientes' | 'cliente' | 'biblioteca'
 export type TrainerTab = 'evolucion' | 'fotos' | 'formularios' | 'agenda' | 'documentos'
 
 interface Props {
@@ -69,6 +70,9 @@ export default function TrainerApp({ profile, onSignOut }: Props) {
             <button onClick={() => setTView('clientes')} style={navBtn(clientesA)}>
               Clientes
             </button>
+            <button onClick={() => setTView('biblioteca')} style={navBtn(tView === 'biblioteca')}>
+              Biblioteca
+            </button>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -91,6 +95,7 @@ export default function TrainerApp({ profile, onSignOut }: Props) {
 
       {tView === 'resumen' && <Resumen />}
       {tView === 'clientes' && <Clientes onOpen={openClient} />}
+      {tView === 'biblioteca' && <Biblioteca />}
       {tView === 'cliente' && selClientId && (
         <ClienteDetalle clientId={selClientId} tTab={tTab} setTTab={setTTab} goClientes={() => setTView('clientes')} />
       )}
