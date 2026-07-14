@@ -308,3 +308,62 @@ create policy "trainer manages schedules" on public.message_schedules
 drop policy if exists "client reads own schedules" on public.message_schedules;
 create policy "client reads own schedules" on public.message_schedules
   for select using (client_id = auth.uid());
+
+-- ============================================================
+--  Invitaciones y cierre del registro (Fase: Altas)
+-- ============================================================
+create table if not exists public.invites (
+  id uuid primary key default gen_random_uuid(),
+  trainer_id uuid not null references public.profiles(id) on delete cascade,
+  email text,
+  full_name text,
+  created_at timestamptz not null default now(),
+  used_at timestamptz,
+  used_by uuid
+);
+alter table public.invites enable row level security;
+
+drop policy if exists "trainer manages invites" on public.invites;
+create policy "trainer manages invites" on public.invites
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+-- Lectura pública de UNA invitación por su token (sin listar la tabla).
+create or replace function public.get_invite(p_token uuid)
+returns table(full_name text, email text, used boolean)
+language sql stable security definer set search_path = public as $$
+  select full_name, email, (used_at is not null) as used
+  from public.invites where id = p_token
+$$;
+
+-- Canjear invitación: crea el perfil de CLIENTE con la ficha completa.
+create or replace function public.redeem_invite(
+  p_token uuid, p_full_name text, p_email text, p_phone text, p_city text,
+  p_age int, p_sex text, p_height numeric, p_injuries text, p_pathologies text, p_main_goal text
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then
+    raise exception 'No autenticado';
+  end if;
+  update public.invites set used_at = now(), used_by = auth.uid()
+    where id = p_token and used_at is null;
+  if not found then
+    raise exception 'Invitación no válida o ya usada';
+  end if;
+  insert into public.profiles (id, role, full_name, email, phone, city, age, sex, height_cm, injuries, pathologies, main_goal)
+  values (auth.uid(), 'client', p_full_name, p_email, p_phone, p_city, p_age, p_sex, p_height, p_injuries, p_pathologies, p_main_goal)
+  on conflict (id) do update set
+    full_name = excluded.full_name, email = excluded.email, phone = excluded.phone,
+    city = excluded.city, age = excluded.age, sex = excluded.sex, height_cm = excluded.height_cm,
+    injuries = excluded.injuries, pathologies = excluded.pathologies, main_goal = excluded.main_goal;
+end $$;
+
+-- Cierre del rol: nadie puede autocrearse como entrenador ni cambiarse el rol.
+drop policy if exists "insert own profile" on public.profiles;
+create policy "insert own profile" on public.profiles
+  for insert with check (auth.uid() = id and role = 'client');
+
+drop policy if exists "update own profile" on public.profiles;
+create policy "update own profile" on public.profiles
+  for update using (auth.uid() = id)
+  with check (auth.uid() = id and role = public.my_role());
