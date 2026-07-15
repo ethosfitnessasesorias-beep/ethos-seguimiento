@@ -4,6 +4,7 @@ import { useAuth } from './lib/auth'
 import { upsertProfile } from './lib/db'
 import Login from './screens/Login'
 import Invitacion from './screens/Invitacion'
+import ResetPassword from './screens/ResetPassword'
 import ClientApp from './components/client/ClientApp'
 import ContratoGate from './components/client/ContratoGate'
 import TrainerApp from './components/trainer/TrainerApp'
@@ -18,7 +19,7 @@ function clearInviteParam() {
 }
 
 export default function App() {
-  const { loading, session, profile, refreshProfile, signOut } = useAuth()
+  const { loading, session, profile, recovery, refreshProfile, signOut } = useAuth()
   const [inviteToken, setInviteToken] = useState<string | null>(readInviteToken)
   const [splashDone, setSplashDone] = useState(false)
 
@@ -29,6 +30,9 @@ export default function App() {
   }, [])
 
   if (loading || !splashDone) return <Splash />
+
+  // Restablecer contraseña (tras pulsar el enlace del correo).
+  if (recovery) return <ResetPassword />
 
   // Registro por invitación (enlace ?invite=…)
   if (!session && inviteToken) {

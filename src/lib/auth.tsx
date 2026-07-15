@@ -7,10 +7,14 @@ interface AuthState {
   session: Session | null
   profile: Profile | null
   loading: boolean
+  recovery: boolean
   refreshProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signUp: (args: { email: string; password: string; fullName: string; role: Role }) => Promise<void>
   signOut: () => Promise<void>
+  requestPasswordReset: (email: string) => Promise<void>
+  updatePassword: (newPassword: string) => Promise<void>
+  clearRecovery: () => void
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
@@ -19,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [recovery, setRecovery] = useState(false)
 
   const loadProfile = async (userId: string) => {
     try {
@@ -38,7 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
       setSession(s)
       if (s) await loadProfile(s.user.id)
       else setProfile(null)
@@ -82,11 +88,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut()
     setProfile(null)
+    setRecovery(false)
   }
+
+  // Envía el correo con el enlace para restablecer la contraseña.
+  const requestPasswordReset = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: window.location.origin,
+    })
+    if (error) throw error
+  }
+
+  // Guarda la nueva contraseña (durante el flujo de recuperación).
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) throw error
+  }
+
+  const clearRecovery = () => setRecovery(false)
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, loading, refreshProfile, signIn, signUp, signOut }}
+      value={{ session, profile, loading, recovery, refreshProfile, signIn, signUp, signOut, requestPasswordReset, updatePassword, clearRecovery }}
     >
       {children}
     </AuthContext.Provider>

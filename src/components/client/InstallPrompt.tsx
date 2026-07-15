@@ -67,8 +67,11 @@ export default function InstallPrompt() {
         <button onClick={dismiss} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 15 }}>✕</button>
       </div>
       {iosHelp && (
-        <div style={{ fontSize: 11.5, color: mut(0.7), marginTop: 10, lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
-          En iPhone: pulsa el botón <b>Compartir</b> (el cuadrado con la flecha ↑) y luego <b>«Añadir a pantalla de inicio»</b>.
+        <div style={{ fontSize: 11.5, color: mut(0.7), marginTop: 10, lineHeight: 1.55, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10 }}>
+          <div style={{ marginBottom: 5 }}><b>En iPhone</b> (importante: ábrela en <b>Safari</b>, no dentro de WhatsApp):</div>
+          1. Pulsa el botón <b>Compartir</b> (el cuadrado con la flecha ↑, abajo).<br />
+          2. Baja y elige <b>«Añadir a pantalla de inicio»</b>.<br />
+          3. Pulsa <b>«Añadir»</b>. ¡Listo, ya la tienes con su icono!
         </div>
       )}
     </div>
