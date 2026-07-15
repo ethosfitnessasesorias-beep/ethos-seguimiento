@@ -3,6 +3,9 @@
 // el servidor, nunca en el navegador.
 import { createClient } from '@supabase/supabase-js'
 
+// Variables de entorno del servidor (Vercel), sin depender de @types/node.
+declare const process: { env: Record<string, string | undefined> }
+
 interface Req {
   headers: Record<string, string | undefined>
   body?: unknown

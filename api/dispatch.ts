@@ -11,6 +11,10 @@
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 
+// Variables de entorno del servidor (Vercel). Se declara aquí para no depender
+// de @types/node en la compilación de las funciones.
+declare const process: { env: Record<string, string | undefined> }
+
 const TZ = 'Europe/Madrid'
 
 function madridNow(): { date: string; hhmm: string; weekday: number } {

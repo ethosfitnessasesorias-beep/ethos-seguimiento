@@ -19,8 +19,7 @@ import { generateClientReport } from '../../lib/report'
 import Modal from '../Modal'
 import MetricChart from '../MetricChart'
 import Composicion from '../Composicion'
-import ProgressPhotos from '../ProgressPhotos'
-import PhotoCompare from '../PhotoCompare'
+import ProgressPhotos, { type ComparePair } from '../ProgressPhotos'
 import ClienteAgenda from './ClienteAgenda'
 import ClienteDocumentos from './ClienteDocumentos'
 import type { TrainerTab } from './TrainerApp'
@@ -54,6 +53,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
   const [stats, setStats] = useState<AdherenceStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [comparePair, setComparePair] = useState<ComparePair | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -120,7 +120,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
               Editar ficha
             </button>
             <button
-              onClick={() => profile && generateClientReport(profile, weights, perims, stats)}
+              onClick={() => profile && generateClientReport(profile, weights, perims, stats, comparePair)}
               style={{ background: 'rgba(219,24,9,0.12)', color: '#f5a99f', border: '1px solid rgba(219,24,9,0.3)', borderRadius: 11, padding: '9px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               ↓ Informe PDF
@@ -158,18 +158,12 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       ) : tTab === 'evolucion' ? (
         <Evolucion weights={weights} perims={perims} target={target} profile={profile} />
       ) : tTab === 'fotos' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ ...card, padding: 22 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Comparar antes / después</div>
-            <div style={{ fontSize: 12.5, color: mut(0.5), marginBottom: 16 }}>Elige dos fechas para ver la evolución lado a lado.</div>
-            <PhotoCompare clientId={clientId} />
+        <div style={{ ...card, padding: 22 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Control fotográfico</div>
+          <div style={{ fontSize: 12.5, color: mut(0.5), marginBottom: 16 }}>
+            Fotos de {name}. Toca 2 para compararlas; esa comparativa se incluirá en el informe PDF.
           </div>
-          <div style={{ ...card, padding: 22 }}>
-            <div style={{ fontSize: 13, color: mut(0.5), marginBottom: 16 }}>
-              Todas las fotos subidas por {name}, ordenadas por fecha.
-            </div>
-            <ProgressPhotos clientId={clientId} columns={4} />
-          </div>
+          <ProgressPhotos clientId={clientId} columns={4} selectable onCompareChange={setComparePair} />
         </div>
       ) : tTab === 'formularios' ? (
         <TrainerForms clientId={clientId} />
