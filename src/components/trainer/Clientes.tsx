@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { listClients, type Profile } from '../../lib/db'
+import { listClients, setClientStatus, type Profile } from '../../lib/db'
 import { createInvite, deleteInvite, inviteLink, inviteMailto, listInvites, type Invite } from '../../lib/invites'
 import Modal from '../Modal'
 import { Search, Chevron } from '../icons'
@@ -22,9 +22,10 @@ export default function Clientes({ onOpen }: Props) {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [tab, setTab] = useState<'active' | 'inactive'>('active')
 
   const reload = useCallback(() => {
-    Promise.all([listClients(), listInvites().catch(() => [] as Invite[])])
+    Promise.all([listClients('all'), listInvites().catch(() => [] as Invite[])])
       .then(([c, i]) => {
         setClients(c)
         setInvites(i.filter((x) => !x.used_at))
@@ -35,13 +36,23 @@ export default function Clientes({ onOpen }: Props) {
 
   useEffect(reload, [reload])
 
+  const isActive = (c: Profile) => (c.status ?? 'active') === 'active'
+  const active = clients.filter(isActive)
+  const inactive = clients.filter((c) => !isActive(c))
+  const shown = tab === 'active' ? active : inactive
+
+  const reactivate = async (c: Profile) => {
+    await setClientStatus(c.id, 'active')
+    reload()
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
         <div>
           <div style={{ fontSize: 26, fontWeight: 700 }}>Mis clientes</div>
           <div style={{ fontSize: 13, color: mut(0.5), marginTop: 2 }}>
-            {loading ? 'Cargando…' : `${clients.length} ${clients.length === 1 ? 'cliente' : 'clientes'}`}
+            {loading ? 'Cargando…' : `${active.length} ${active.length === 1 ? 'activo' : 'activos'}${inactive.length ? ` · ${inactive.length} inactivo${inactive.length === 1 ? '' : 's'}` : ''}`}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -64,19 +75,40 @@ export default function Clientes({ onOpen }: Props) {
         </div>
       )}
 
+      {/* pestañas activos / inactivos */}
+      {!loading && clients.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {([['active', `Activos (${active.length})`], ['inactive', `Inactivos (${inactive.length})`]] as ['active' | 'inactive', string][]).map(([k, l]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              style={{ background: tab === k ? colors.accent : colors.surface2, color: tab === k ? '#fff' : mut(0.6), border: tab === k ? 'none' : '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '8px 16px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
+
       {!loading && !err && clients.length === 0 && (
         <div style={{ background: colors.surface1, border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Aún no tienes clientes</div>
           <div style={{ fontSize: 13, color: mut(0.5), lineHeight: 1.6, maxWidth: 420, margin: '0 auto' }}>
-            Cuando un cliente cree su cuenta desde la app, aparecerá aquí y podrás ver su evolución. En la próxima fase podrás darlos de alta tú mismo e invitarlos.
+            Añade tu primer cliente con «+ Añadir cliente»: se genera un enlace de invitación para que rellene su ficha.
           </div>
         </div>
       )}
 
-      {clients.length > 0 && (
+      {!loading && clients.length > 0 && shown.length === 0 && (
+        <div style={{ fontSize: 13, color: mut(0.4), padding: '20px 2px' }}>
+          {tab === 'inactive' ? 'No tienes clientes dados de baja. Cuando des de baja a alguien, aparecerá aquí con todo su historial guardado.' : 'No hay clientes activos.'}
+        </div>
+      )}
+
+      {shown.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-          {clients.map((c) => (
-            <ClientCard key={c.id} c={c} onClick={() => onOpen(c.id)} />
+          {shown.map((c) => (
+            <ClientCard key={c.id} c={c} inactive={tab === 'inactive'} onClick={() => onOpen(c.id)} onReactivate={() => reactivate(c)} />
           ))}
         </div>
       )}
@@ -233,7 +265,7 @@ function InviteModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   )
 }
 
-function ClientCard({ c, onClick }: { c: Profile; onClick: () => void }) {
+function ClientCard({ c, onClick, inactive, onReactivate }: { c: Profile; onClick: () => void; inactive?: boolean; onReactivate?: () => void }) {
   const [hover, setHover] = useState(false)
   return (
     <div
@@ -246,6 +278,7 @@ function ClientCard({ c, onClick }: { c: Profile; onClick: () => void }) {
         borderRadius: 16,
         padding: 18,
         cursor: 'pointer',
+        opacity: inactive ? 0.72 : 1,
         transition: 'border-color .15s, background .15s',
       }}
     >
@@ -254,11 +287,25 @@ function ClientCard({ c, onClick }: { c: Profile; onClick: () => void }) {
           {initials(c.full_name)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{c.full_name || 'Cliente'}</div>
-          <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 2 }}>{c.plan ? `Plan ${c.plan}` : 'Sin plan asignado'}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {c.full_name || 'Cliente'}
+            {inactive && <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, color: mut(0.6), background: colors.surface2, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 7px' }}>BAJA</span>}
+          </div>
+          <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 2 }}>
+            {inactive && c.deactivated_at ? `De baja desde ${c.deactivated_at.slice(0, 10)}` : c.plan ? `Plan ${c.plan}` : 'Sin plan asignado'}
+          </div>
         </div>
         <Chevron />
       </div>
+
+      {inactive && onReactivate && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onReactivate() }}
+          style={{ width: '100%', marginTop: 14, background: 'rgba(74,222,128,0.12)', color: colors.green, border: '1px solid rgba(74,222,128,0.35)', borderRadius: 10, padding: '9px 0', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+        >
+          ↩ Reactivar cliente
+        </button>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
         <span style={{ color: mut(0.5) }}>Cumplimiento</span>
         <span style={{ fontWeight: 700, color: adhColor(c.adherence ?? 0) }}>{c.adherence ?? 0}%</span>

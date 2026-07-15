@@ -531,3 +531,26 @@ drop policy if exists "client writes own doc files" on storage.objects;
 create policy "client writes own doc files" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'documents' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ============================================================
+--  v18 · Alta/baja de clientes (sin perder datos)
+-- ============================================================
+-- Estado del cliente: 'active' o 'inactive'. Al dar de baja NO se borra nada;
+-- se conserva todo el historial para cuando vuelva.
+alter table public.profiles add column if not exists status text not null default 'active';
+alter table public.profiles add column if not exists deactivated_at timestamptz;
+
+-- El resumen de equipo cuenta solo clientes ACTIVOS.
+create or replace function public.get_team_summary()
+returns table(trainer_id uuid, trainer_name text, clients int, avg_adherence numeric, avg_months numeric)
+language sql stable security definer set search_path = public as $$
+  select t.id, t.full_name,
+    count(c.id)::int,
+    coalesce(round(avg(c.adherence)), 0)::numeric,
+    coalesce(round(avg(extract(epoch from (now() - c.created_at)) / 2629800.0)::numeric, 1), 0)::numeric
+  from public.profiles t
+  left join public.profiles c
+    on c.trainer_id = t.id and c.role = 'client' and coalesce(c.status,'active') = 'active'
+  where t.role = 'trainer'
+  group by t.id, t.full_name
+$$;

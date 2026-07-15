@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import {
+  deleteClientPermanently,
   getProfile,
   listPerimeters,
   listWeights,
+  setClientStatus,
   updateProfile,
   PERIMETER_FIELDS,
   type PerimeterLog,
@@ -138,6 +140,9 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
         </div>
       )}
 
+      {/* alta / baja / eliminación */}
+      {profile && <ClientLifecycle profile={profile} onChanged={load} goClientes={goClientes} />}
+
       {/* notas privadas del entrenador */}
       <PrivateNotes clientId={clientId} />
 
@@ -211,6 +216,100 @@ function FichaCard({ p }: { p: Profile }) {
       <div style={{ marginTop: 14 }}>
         <FichaText label="Objetivo principal" value={p.main_goal} />
       </div>
+    </div>
+  )
+}
+
+// Gestión del cliente: dar de baja (conserva datos), reactivar o eliminar.
+function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile; onChanged: () => void; goClientes: () => void }) {
+  const active = (profile.status ?? 'active') === 'active'
+  const [busy, setBusy] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [delText, setDelText] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+
+  const toggle = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await setClientStatus(profile.id, active ? 'inactive' : 'active')
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo cambiar el estado.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const del = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await deleteClientPermanently(profile.id)
+      goClientes()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo eliminar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ ...card, padding: '14px 20px', marginTop: 12, borderColor: active ? card.border as string : 'rgba(245,166,35,0.3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>
+            {active ? 'Cliente activo' : 'Cliente dado de baja'}
+            {!active && <span style={{ fontSize: 10.5, color: colors.amber, marginLeft: 8, fontWeight: 600 }}>· no cuenta en tus estadísticas</span>}
+          </div>
+          <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 2 }}>
+            {active
+              ? 'Al dar de baja se conserva TODO su historial. Podrás reactivarlo cuando vuelva.'
+              : profile.deactivated_at
+                ? `De baja desde el ${profile.deactivated_at.slice(0, 10)}. Sus datos siguen guardados.`
+                : 'Sus datos siguen guardados.'}
+          </div>
+        </div>
+        <button
+          onClick={toggle}
+          disabled={busy}
+          style={{ background: active ? colors.surface2 : 'rgba(74,222,128,0.14)', color: active ? colors.amber : colors.green, border: `1px solid ${active ? 'rgba(245,166,35,0.35)' : 'rgba(74,222,128,0.4)'}`, borderRadius: 10, padding: '9px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+        >
+          {active ? 'Dar de baja' : '↩ Reactivar'}
+        </button>
+        <button
+          onClick={() => { setConfirmDel(true); setDelText(''); setErr(null) }}
+          disabled={busy}
+          style={{ background: 'none', color: mut(0.45), border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          Eliminar…
+        </button>
+      </div>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+
+      {confirmDel && (
+        <Modal title="Eliminar cliente definitivamente" onClose={() => setConfirmDel(false)}>
+          <div style={{ fontSize: 13, color: mut(0.7), lineHeight: 1.6, marginBottom: 14 }}>
+            Esto borra <b style={{ color: '#f5a99f' }}>para siempre</b> la cuenta de <b>{profile.full_name || 'este cliente'}</b> y todos sus datos (métricas, fotos, formularios, documentos, contrato). <b>No se puede deshacer.</b>
+            <br /><br />
+            Si solo se va temporalmente, usa <b style={{ color: colors.amber }}>«Dar de baja»</b> en su lugar y conservarás todo.
+          </div>
+          <div style={{ fontSize: 11.5, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>Escribe ELIMINAR para confirmar</div>
+          <input
+            value={delText}
+            onChange={(e) => setDelText(e.target.value)}
+            placeholder="ELIMINAR"
+            style={{ ...fieldStyle, marginBottom: 14 }}
+          />
+          {err && <div style={{ fontSize: 12, color: '#f5a99f', marginBottom: 10 }}>{err}</div>}
+          <button
+            onClick={del}
+            disabled={busy || delText.trim().toUpperCase() !== 'ELIMINAR'}
+            style={{ width: '100%', background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy || delText.trim().toUpperCase() !== 'ELIMINAR' ? 0.5 : 1 }}
+          >
+            {busy ? 'Eliminando…' : 'Eliminar definitivamente'}
+          </button>
+        </Modal>
+      )}
     </div>
   )
 }

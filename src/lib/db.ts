@@ -26,8 +26,12 @@ export interface Profile {
   contract_signature_name: string | null
   contract_dni: string | null
   contract_version: string | null
+  status: string | null // 'active' | 'inactive'
+  deactivated_at: string | null
   created_at: string
 }
+
+export type ClientStatus = 'active' | 'inactive'
 
 export interface WeightLog {
   id: string
@@ -78,14 +82,40 @@ export async function updateProfile(id: string, patch: Partial<Profile>) {
 
 // ---- Clientes (vista entrenador) ----
 // Solo los clientes asignados al entrenador que ha iniciado sesión.
-export async function listClients(): Promise<Profile[]> {
+// Por defecto, solo los ACTIVOS (los dashboards no cuentan a los inactivos).
+export async function listClients(status: ClientStatus | 'all' = 'active'): Promise<Profile[]> {
   const { data: u } = await supabase.auth.getUser()
   const uid = u.user?.id
   let q = supabase.from('profiles').select('*').eq('role', 'client')
   if (uid) q = q.eq('trainer_id', uid)
   const { data, error } = await q.order('full_name', { ascending: true })
   if (error) throw error
-  return data ?? []
+  const rows = data ?? []
+  if (status === 'all') return rows
+  return rows.filter((c) => (c.status ?? 'active') === status)
+}
+
+// Da de baja / reactiva a un cliente sin borrar sus datos.
+export async function setClientStatus(clientId: string, status: ClientStatus): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ status, deactivated_at: status === 'inactive' ? new Date().toISOString() : null })
+    .eq('id', clientId)
+  if (error) throw error
+}
+
+// Elimina DEFINITIVAMENTE al cliente y todos sus datos (irreversible).
+export async function deleteClientPermanently(clientId: string): Promise<void> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Sesión no encontrada. Vuelve a iniciar sesión.')
+  const res = await fetch('/api/delete-client', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ client_id: clientId }),
+  })
+  const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
+  if (!res.ok || !out.ok) throw new Error(out.error || 'No se pudo eliminar el cliente.')
 }
 
 // ---- Peso ----
