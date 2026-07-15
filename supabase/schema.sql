@@ -490,3 +490,44 @@ create policy "trainer manages client notes" on public.client_notes
 
 -- 3) Recordatorios automáticos de eventos (marca de envío para no repetir).
 alter table public.events add column if not exists reminded_at timestamptz;
+
+-- ============================================================
+--  v17 · Carpetas de documentos, hábitos y copia del contrato
+-- ============================================================
+
+-- 1) Carpetas para organizar los documentos de cada cliente.
+create table if not exists public.document_folders (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.document_folders enable row level security;
+drop policy if exists "trainer manages doc folders" on public.document_folders;
+create policy "trainer manages doc folders" on public.document_folders
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+drop policy if exists "client reads own doc folders" on public.document_folders;
+create policy "client reads own doc folders" on public.document_folders
+  for select using (client_id = auth.uid());
+
+alter table public.documents add column if not exists folder_id uuid references public.document_folders(id) on delete set null;
+
+-- 2) Hábitos: el cliente puede crear/borrar SUS eventos de tipo 'habito'
+--    (los demás tipos solo los gestiona el entrenador).
+drop policy if exists "client inserts own habits" on public.events;
+create policy "client inserts own habits" on public.events
+  for insert with check (client_id = auth.uid() and type = 'habito');
+drop policy if exists "client deletes own habits" on public.events;
+create policy "client deletes own habits" on public.events
+  for delete using (client_id = auth.uid() and type = 'habito');
+
+-- 3) Copia del contrato firmado guardada en Documentos.
+--    El cliente puede crear su propio documento de categoría 'Contrato'.
+drop policy if exists "client inserts own contract doc" on public.documents;
+create policy "client inserts own contract doc" on public.documents
+  for insert with check (client_id = auth.uid() and category = 'Contrato');
+
+drop policy if exists "client writes own doc files" on storage.objects;
+create policy "client writes own doc files" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'documents' and (storage.foldername(name))[1] = auth.uid()::text);

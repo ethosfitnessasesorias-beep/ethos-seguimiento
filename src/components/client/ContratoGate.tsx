@@ -7,6 +7,7 @@ import {
   CONTRACT_TITLE,
   CONTRACT_VERSION,
 } from '../../lib/contract'
+import { saveSignedContract } from '../../lib/contractDoc'
 
 // Pantalla que bloquea la app hasta que el cliente firma el contrato.
 export default function ContratoGate({ profile, onSigned }: { profile: Profile; onSigned: () => Promise<void> }) {
@@ -33,12 +34,19 @@ export default function ContratoGate({ profile, onSigned }: { profile: Profile; 
     if (!accepted) return setErr('Debes marcar la casilla de aceptación.')
     setBusy(true)
     try {
+      const signedAt = new Date().toISOString()
       await updateProfile(profile.id, {
-        contract_signed_at: new Date().toISOString(),
+        contract_signed_at: signedAt,
         contract_signature_name: name.trim(),
         contract_dni: dni.trim().toUpperCase(),
         contract_version: CONTRACT_VERSION,
       })
+      // Guarda una copia descargable en Documentos (no bloquea la entrada si falla).
+      try {
+        await saveSignedContract(profile.id, name.trim(), dni.trim().toUpperCase(), signedAt)
+      } catch {
+        /* la firma queda registrada igualmente */
+      }
       await onSigned()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo registrar la firma.')

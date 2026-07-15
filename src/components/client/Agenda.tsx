@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { EVENT_ORDER, EVENT_TYPES, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType } from '../../lib/events'
+import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType } from '../../lib/events'
+import Modal from '../Modal'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
@@ -21,6 +22,7 @@ export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Prop
   const [month, setMonth] = useState(now.getMonth())
   const [selDay, setSelDay] = useState(now.getDate())
   const [events, setEvents] = useState<CalEvent[]>([])
+  const [habitOpen, setHabitOpen] = useState(false)
 
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const startDow = (new Date(year, month, 1).getDay() + 6) % 7 // 0 = Lunes
@@ -101,6 +103,17 @@ export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Prop
       // se mantiene el valor local
     }
   }
+  const removeHabit = async (e: CalEvent) => {
+    if (!confirm('¿Eliminar este hábito?')) return
+    setEvents((evs) => evs.filter((x) => x.id !== e.id))
+    try {
+      await deleteEvent(e.id)
+    } catch {
+      load()
+    }
+  }
+
+  const selectedISO = iso(year, month, selDay)
 
   return (
     <div>
@@ -165,8 +178,14 @@ export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Prop
       </div>
 
       {/* day agenda */}
-      <div style={{ margin: '18px 4px 10px', fontSize: 13, fontWeight: 700 }}>
-        Agenda · {selDay} de {MONTHS[month].toLowerCase()}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '18px 4px 10px' }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Agenda · {selDay} de {MONTHS[month].toLowerCase()}</div>
+        <button
+          onClick={() => setHabitOpen(true)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.12)', color: colors.green, border: '1px solid rgba(74,222,128,0.35)', borderRadius: 999, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+        >
+          + Hábito
+        </button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
         {selEvents.length === 0 && (
@@ -201,6 +220,9 @@ export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Prop
                   )}
                 </div>
                 {e.time && <span style={{ fontSize: 12, fontWeight: 600, color: cfg.color }}>{e.time}</span>}
+                {e.type === 'habito' && (
+                  <button onClick={() => removeHabit(e)} title="Eliminar hábito" style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>✕</button>
+                )}
               </div>
               <input
                 defaultValue={e.note ?? ''}
@@ -212,7 +234,81 @@ export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Prop
           )
         })}
       </div>
+
+      {habitOpen && (
+        <HabitModal
+          clientId={clientId}
+          date={selectedISO}
+          onClose={() => setHabitOpen(false)}
+          onDone={() => {
+            setHabitOpen(false)
+            load()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// Modal para que el cliente añada un hábito (opcionalmente repetido).
+const HABIT_SUGGESTIONS = ['Beber 2L de agua', '10.000 pasos', 'Dormir 8 horas', 'Estiramientos', 'Sin ultraprocesados']
+type Repeat = 'once' | 'week' | 'month'
+
+function HabitModal({ clientId, date, onClose, onDone }: { clientId: string; date: string; onClose: () => void; onDone: () => void }) {
+  const [title, setTitle] = useState('')
+  const [time, setTime] = useState('')
+  const [repeat, setRepeat] = useState<Repeat>('week')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    if (!title.trim()) return setErr('Escribe el hábito.')
+    setBusy(true)
+    setErr(null)
+    const days = repeat === 'once' ? 1 : repeat === 'week' ? 7 : 28
+    const dates = Array.from({ length: days }, (_, i) => isoAddDays(date, i))
+    try {
+      await addHabitOccurrences(clientId, dates, { title: title.trim(), time: time.trim() || undefined })
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo crear.')
+      setBusy(false)
+    }
+  }
+
+  const fld: React.CSSProperties = { width: '100%', background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '11px 12px', color: colors.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }
+  const lbl: React.CSSProperties = { fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }
+
+  return (
+    <Modal title={`Nuevo hábito · desde ${date}`} onClose={onClose}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        {HABIT_SUGGESTIONS.map((s) => (
+          <button key={s} onClick={() => setTitle(s)} style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '6px 11px', fontFamily: 'inherit', fontSize: 11.5, color: mut(0.7), cursor: 'pointer' }}>
+            {s}
+          </button>
+        ))}
+      </div>
+      <label style={{ display: 'block', marginBottom: 12 }}>
+        <span style={lbl}>Hábito</span>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej. Beber 2L de agua" style={fld} autoFocus />
+      </label>
+      <label style={{ display: 'block', marginBottom: 12 }}>
+        <span style={lbl}>Hora (opcional)</span>
+        <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="08:00" style={fld} />
+      </label>
+      <div style={lbl}>REPETIR</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+        {([['once', 'Solo este día'], ['week', 'Una semana'], ['month', '4 semanas']] as [Repeat, string][]).map(([k, l]) => (
+          <button key={k} onClick={() => setRepeat(k)} style={{ flex: 1, background: repeat === k ? 'rgba(74,222,128,0.14)' : colors.surface2, color: repeat === k ? colors.green : mut(0.6), border: `1px solid ${repeat === k ? 'rgba(74,222,128,0.5)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 10, padding: '10px 0', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.green, color: '#062', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Guardando…' : 'Añadir hábito'}
+      </button>
+    </Modal>
   )
 }
 

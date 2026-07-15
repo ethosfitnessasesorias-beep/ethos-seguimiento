@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 
 // ---- Tipos de evento ----
-export type EventType = 'entreno' | 'cardio' | 'reporte' | 'cambio'
+export type EventType = 'entreno' | 'cardio' | 'habito' | 'reporte' | 'cambio'
 
 export interface EventTypeConfig {
   label: string
@@ -13,11 +13,12 @@ export interface EventTypeConfig {
 export const EVENT_TYPES: Record<EventType, EventTypeConfig> = {
   entreno: { label: 'Entrenamiento', color: '#db1809', form: null },
   cardio: { label: 'Objetivo cardio', color: '#f5a623', form: null },
+  habito: { label: 'Hábito', color: '#4ade80', form: null },
   reporte: { label: 'Rellenar reporte', color: '#2dd4bf', form: 'reporte' },
   cambio: { label: 'Cambio de planificación', color: '#a78bfa', form: 'cambio' },
 }
 
-export const EVENT_ORDER: EventType[] = ['entreno', 'cardio', 'reporte', 'cambio']
+export const EVENT_ORDER: EventType[] = ['entreno', 'cardio', 'habito', 'reporte', 'cambio']
 
 export interface CalEvent {
   id: string
@@ -138,6 +139,27 @@ export async function addEvent(
 export async function deleteEvent(id: string) {
   const { error } = await supabase.from('events').delete().eq('id', id)
   if (error) throw error
+}
+
+// ---- Hábitos del cliente (solo tipo 'habito') ----
+/** Crea un hábito en una o varias fechas (para repetirlo). */
+export async function addHabitOccurrences(
+  clientId: string,
+  dates: string[],
+  h: { title?: string; time?: string; detail?: string },
+) {
+  const rows = dates.map((d) => ({
+    client_id: clientId,
+    event_date: d,
+    type: 'habito' as EventType,
+    title: h.title || null,
+    time: h.time || null,
+    detail: h.detail || null,
+  }))
+  if (rows.length === 0) return 0
+  const { error } = await supabase.from('events').insert(rows)
+  if (error) throw error
+  return rows.length
 }
 
 // ---- Programas semanales ----

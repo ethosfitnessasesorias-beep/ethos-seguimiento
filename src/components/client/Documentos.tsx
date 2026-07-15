@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { catStyle, humanSize, listDocuments, type DocumentWithUrl } from '../../lib/documents'
+import { catStyle, humanSize, listDocuments, listFolders, type DocFolder, type DocumentWithUrl } from '../../lib/documents'
 import { Search, FileIcon, Download } from '../icons'
 
-const chips = ['Todos', 'Entrenamiento', 'Nutrición', 'Guía']
+const chips = ['Todos', 'Entrenamiento', 'Nutrición', 'Guía', 'Contrato']
 
 function shortDate(iso: string): string {
   const M = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -13,17 +13,30 @@ function shortDate(iso: string): string {
 
 export default function Documentos({ clientId }: { clientId: string }) {
   const [docs, setDocs] = useState<DocumentWithUrl[]>([])
+  const [folders, setFolders] = useState<DocFolder[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('Todos')
 
   useEffect(() => {
-    listDocuments(clientId)
-      .then(setDocs)
-      .catch(() => setDocs([]))
+    Promise.all([listDocuments(clientId), listFolders(clientId)])
+      .then(([d, f]) => {
+        setDocs(d)
+        setFolders(f)
+      })
+      .catch(() => {
+        setDocs([])
+        setFolders([])
+      })
       .finally(() => setLoading(false))
   }, [clientId])
 
   const shown = filter === 'Todos' ? docs : docs.filter((d) => d.category === filter)
+
+  // Agrupa por carpeta (las que no tienen, en "General").
+  const groups: { name: string; id: string | null; docs: DocumentWithUrl[] }[] = [
+    ...folders.map((f) => ({ name: f.name, id: f.id as string | null, docs: shown.filter((d) => d.folder_id === f.id) })),
+    { name: 'General', id: null, docs: shown.filter((d) => !d.folder_id) },
+  ].filter((g) => g.docs.length > 0)
 
   return (
     <div>
@@ -46,36 +59,45 @@ export default function Documentos({ clientId }: { clientId: string }) {
 
       {loading ? (
         <div style={{ fontSize: 12.5, color: mut(0.4), padding: 10 }}>Cargando documentos…</div>
-      ) : shown.length === 0 ? (
+      ) : groups.length === 0 ? (
         <div style={{ background: colors.surface1, border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 14, padding: '30px 16px', textAlign: 'center', fontSize: 12.5, color: mut(0.4) }}>
           {docs.length === 0 ? 'Tu entrenador aún no ha subido documentos.' : 'No hay documentos en esta categoría.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {shown.map((d) => {
-            const st = catStyle(d.category)
-            return (
-              <a
-                key={d.id}
-                href={d.url ?? '#'}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display: 'flex', alignItems: 'center', gap: 13, background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '14px 15px', textDecoration: 'none', color: colors.text }}
-              >
-                <div style={{ width: 42, height: 42, flex: 'none', borderRadius: 11, background: st.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FileIcon size={19} stroke={st.color} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{d.title}</div>
-                  <div style={{ fontSize: 11, color: mut(0.45), marginTop: 3 }}>
-                    <span style={{ color: st.color, fontWeight: 600 }}>{d.category}</span> · {shortDate(d.created_at)}
-                    {d.size_bytes ? ` · ${humanSize(d.size_bytes)}` : ''}
-                  </div>
-                </div>
-                <Download />
-              </a>
-            )
-          })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {groups.map((g) => (
+            <div key={g.id ?? 'general'}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: mut(0.6), marginBottom: 9, paddingLeft: 2 }}>
+                {g.id ? `📁 ${g.name}` : 'General'}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {g.docs.map((d) => {
+                  const st = catStyle(d.category)
+                  return (
+                    <a
+                      key={d.id}
+                      href={d.url ?? '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 13, background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '14px 15px', textDecoration: 'none', color: colors.text }}
+                    >
+                      <div style={{ width: 42, height: 42, flex: 'none', borderRadius: 11, background: st.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <FileIcon size={19} stroke={st.color} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{d.title}</div>
+                        <div style={{ fontSize: 11, color: mut(0.45), marginTop: 3 }}>
+                          <span style={{ color: st.color, fontWeight: 600 }}>{d.category}</span> · {shortDate(d.created_at)}
+                          {d.size_bytes ? ` · ${humanSize(d.size_bytes)}` : ''}
+                        </div>
+                      </div>
+                      <Download />
+                    </a>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
