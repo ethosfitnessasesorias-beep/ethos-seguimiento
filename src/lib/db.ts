@@ -95,6 +95,25 @@ export async function listClients(status: ClientStatus | 'all' = 'active'): Prom
   return rows.filter((c) => (c.status ?? 'active') === status)
 }
 
+// Nombre y WhatsApp del entrenador del cliente actual (para el botón de chat).
+export async function getMyTrainer(): Promise<{ full_name: string | null; phone: string | null } | null> {
+  const { data, error } = await supabase.rpc('get_my_trainer')
+  if (error) throw error
+  const row = Array.isArray(data) ? data[0] : data
+  return row ? { full_name: row.full_name ?? null, phone: row.phone ?? null } : null
+}
+
+// Construye un enlace de WhatsApp a partir de un teléfono (España por defecto).
+export function whatsappLink(phone: string | null | undefined, text?: string): string | null {
+  if (!phone) return null
+  let digits = phone.replace(/[^\d]/g, '')
+  if (!digits) return null
+  // Si son 9 dígitos (móvil español sin prefijo), anteponemos 34.
+  if (digits.length === 9) digits = '34' + digits
+  const base = `https://wa.me/${digits}`
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base
+}
+
 // Da de baja / reactiva a un cliente sin borrar sus datos.
 export async function setClientStatus(clientId: string, status: ClientStatus): Promise<void> {
   const { error } = await supabase

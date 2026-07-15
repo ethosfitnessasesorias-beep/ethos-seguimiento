@@ -7,6 +7,7 @@ import Invitacion from './screens/Invitacion'
 import ResetPassword from './screens/ResetPassword'
 import ClientApp from './components/client/ClientApp'
 import ContratoGate from './components/client/ContratoGate'
+import ClienteInactivo from './screens/ClienteInactivo'
 import TrainerApp from './components/trainer/TrainerApp'
 
 function readInviteToken(): string | null {
@@ -63,6 +64,9 @@ export default function App() {
   if (!profile) return <ProfileSetup userId={session.user.id} email={session.user.email ?? null} onDone={refreshProfile} />
 
   if (profile.role === 'trainer') return <TrainerApp profile={profile} onSignOut={signOut} />
+
+  // Clientes dados de baja: acceso bloqueado.
+  if ((profile.status ?? 'active') === 'inactive') return <ClienteInactivo onSignOut={signOut} />
 
   // El cliente no entra a la app hasta firmar el contrato.
   if (!profile.contract_signed_at) return <ContratoGate profile={profile} onSigned={refreshProfile} />

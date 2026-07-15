@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth'
 import { updateProfile, type Profile } from '../lib/db'
 import { disablePush, enablePush, notificationPermission } from '../lib/push'
 
-const APP_VERSION = '2.0'
+const APP_VERSION = '2.2'
 
 interface Props {
   profile: Profile
@@ -67,14 +67,19 @@ export default function Settings({ profile, onClose, onSignOut }: Props) {
 // ---------- Secciones ----------
 function AccountSection({ profile, onSaved }: { profile: Profile; onSaved: () => Promise<void> }) {
   const [name, setName] = useState(profile.full_name ?? '')
+  const [phone, setPhone] = useState(profile.phone ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const isTrainer = profile.role === 'trainer'
 
   const save = async () => {
     setBusy(true)
     setMsg(null)
     try {
-      await updateProfile(profile.id, { full_name: name.trim() || null })
+      await updateProfile(profile.id, {
+        full_name: name.trim() || null,
+        ...(isTrainer ? { phone: phone.trim() || null } : {}),
+      })
       await onSaved()
       setMsg('Guardado ✓')
     } catch (e) {
@@ -88,6 +93,9 @@ function AccountSection({ profile, onSaved }: { profile: Profile; onSaved: () =>
     <Section title="CUENTA">
       <Field label="Nombre y apellidos" value={name} onChange={setName} />
       <Field label="Email" value={profile.email ?? ''} onChange={() => {}} disabled />
+      {isTrainer && (
+        <Field label="Tu WhatsApp (lo usarán tus clientes para contactarte)" value={phone} onChange={setPhone} placeholder="646 65 11 18" />
+      )}
       <SaveButton onClick={save} busy={busy} msg={msg} />
     </Section>
   )

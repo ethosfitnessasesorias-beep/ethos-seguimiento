@@ -97,6 +97,7 @@ export default function Equipo({ myId }: { myId: string }) {
 function AddTrainerModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [pw, setPw] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -105,10 +106,11 @@ function AddTrainerModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const submit = async () => {
     setErr(null)
     if (!email.trim() || !email.includes('@')) return setErr('Introduce un email válido.')
+    if (phone.replace(/[^\d]/g, '').length < 9) return setErr('Introduce un teléfono/WhatsApp válido.')
     if (pw.length < 6) return setErr('La contraseña debe tener al menos 6 caracteres.')
     setBusy(true)
     try {
-      await createTrainer(email.trim().toLowerCase(), pw, name.trim() || null)
+      await createTrainer(email.trim().toLowerCase(), pw, name.trim() || null, phone.trim())
       setDone({ email: email.trim().toLowerCase(), pw })
       onCreated()
     } catch (e) {
@@ -148,6 +150,7 @@ function AddTrainerModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
             <MField label="Nombre y apellidos" value={name} onChange={setName} placeholder="Ej. Laura Gómez" />
             <MField label="Email" value={email} onChange={setEmail} placeholder="entrenador@correo.com" type="email" />
+            <MField label="Teléfono / WhatsApp" value={phone} onChange={setPhone} placeholder="Ej. 646 65 11 18" type="tel" />
             <div style={{ marginBottom: 4 }}>
               <MField label="Contraseña temporal" value={pw} onChange={setPw} placeholder="mínimo 6 caracteres" />
               <button onClick={suggest} style={{ background: 'none', border: 'none', color: colors.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0 0', fontFamily: 'inherit' }}>

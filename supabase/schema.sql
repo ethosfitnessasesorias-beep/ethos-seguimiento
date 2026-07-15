@@ -540,6 +540,17 @@ create policy "client writes own doc files" on storage.objects
 alter table public.profiles add column if not exists status text not null default 'active';
 alter table public.profiles add column if not exists deactivated_at timestamptz;
 
+-- El cliente puede obtener el nombre y el WhatsApp de SU entrenador
+-- (sin exponer el resto de datos del entrenador).
+create or replace function public.get_my_trainer()
+returns table(full_name text, phone text)
+language sql stable security definer set search_path = public as $$
+  select t.full_name, t.phone
+  from public.profiles me
+  join public.profiles t on t.id = me.trainer_id
+  where me.id = auth.uid()
+$$;
+
 -- El resumen de equipo cuenta solo clientes ACTIVOS.
 create or replace function public.get_team_summary()
 returns table(trainer_id uuid, trainer_name text, clients int, avg_adherence numeric, avg_months numeric)

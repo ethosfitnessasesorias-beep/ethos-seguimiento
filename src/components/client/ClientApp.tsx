@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import type { Profile } from '../../lib/db'
+import { getMyTrainer, whatsappLink, type Profile } from '../../lib/db'
 import { useAuth } from '../../lib/auth'
 import { listNotifications, type NotificationItem } from '../../lib/messages'
 import { Bell, User, Pulse, BarChart, Calendar, FileIcon, Clipboard, Gear } from '../icons'
@@ -38,6 +38,19 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   const [messages, setMessages] = useState<NotificationItem[]>([])
   const [showNotif, setShowNotif] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [trainer, setTrainer] = useState<{ full_name: string | null; phone: string | null } | null>(null)
+
+  useEffect(() => {
+    getMyTrainer().then(setTrainer).catch(() => {})
+  }, [])
+
+  const openChat = () => {
+    const link = whatsappLink(
+      trainer?.phone,
+      `Hola${trainer?.full_name ? ' ' + trainer.full_name.split(' ')[0] : ''}, soy ${profile.full_name?.split(' ')[0] || 'tu cliente'} 👋`,
+    )
+    if (link) window.open(link, '_blank')
+  }
 
   const loadMessages = () => {
     listNotifications(profile).then(setMessages).catch(() => {})
@@ -101,6 +114,11 @@ export default function ClientApp({ profile, onSignOut }: Props) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {trainer?.phone && (
+              <IconCircle onClick={openChat} title="Chatear con tu entrenador">
+                <ChatIcon />
+              </IconCircle>
+            )}
             <div style={{ position: 'relative' }}>
               <IconCircle onClick={() => setShowNotif(true)} title="Notificaciones">
                 <Bell size={18} />
@@ -169,6 +187,14 @@ export default function ClientApp({ profile, onSignOut }: Props) {
 
       {showSettings && <Settings profile={profile} onSignOut={onSignOut} onClose={() => setShowSettings(false)} />}
     </div>
+  )
+}
+
+function ChatIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </svg>
   )
 }
 

@@ -42,14 +42,14 @@ export async function deleteInvite(id: string) {
 // ---- Crear un nuevo ENTRENADOR (solo entrenadores) ----
 // La cuenta se crea en el servidor con la clave de administrador; aquí solo
 // enviamos la sesión del entrenador que lo pide.
-export async function createTrainer(email: string, password: string, fullName: string | null): Promise<void> {
+export async function createTrainer(email: string, password: string, fullName: string | null, phone: string): Promise<void> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
   if (!token) throw new Error('Sesión no encontrada. Vuelve a iniciar sesión.')
   const res = await fetch('/api/create-trainer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ email, password, full_name: fullName }),
+    body: JSON.stringify({ email, password, full_name: fullName, phone }),
   })
   const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
   if (!res.ok || !out.ok) throw new Error(out.error || 'No se pudo crear el entrenador.')

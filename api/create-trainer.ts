@@ -32,12 +32,17 @@ export default async function handler(req: Req, res: Res) {
     email?: string
     password?: string
     full_name?: string
+    phone?: string
   }
   const email = b?.email?.trim().toLowerCase()
   const password = b?.password
   const full_name = b?.full_name?.trim() || null
+  const phone = b?.phone?.trim() || null
   if (!email || !password || password.length < 6) {
     return res.status(400).json({ error: 'Email y contraseña (mínimo 6 caracteres) obligatorios.' })
+  }
+  if (!phone) {
+    return res.status(400).json({ error: 'El teléfono/WhatsApp es obligatorio.' })
   }
 
   // Crear el usuario (ya confirmado, sin email de verificación).
@@ -45,7 +50,7 @@ export default async function handler(req: Req, res: Res) {
   if (error || !created.user) return res.status(400).json({ error: error?.message || 'No se pudo crear la cuenta.' })
 
   // Ficha de perfil como entrenador.
-  const { error: pErr } = await supabase.from('profiles').insert({ id: created.user.id, role: 'trainer', full_name, email })
+  const { error: pErr } = await supabase.from('profiles').insert({ id: created.user.id, role: 'trainer', full_name, email, phone })
   if (pErr) return res.status(400).json({ error: pErr.message })
 
   return res.status(200).json({ ok: true, email })
