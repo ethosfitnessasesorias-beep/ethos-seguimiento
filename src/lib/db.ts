@@ -159,6 +159,20 @@ export async function addWeight(clientId: string, weight: number, logDate?: stri
   await supabase.from('profiles').update({ current_weight: weight }).eq('id', clientId)
 }
 
+// Borra un registro de peso y recalcula el "peso actual" del perfil.
+export async function deleteWeight(id: string, clientId: string) {
+  const { error } = await supabase.from('weight_logs').delete().eq('id', id)
+  if (error) throw error
+  const { data } = await supabase
+    .from('weight_logs')
+    .select('weight')
+    .eq('client_id', clientId)
+    .order('log_date', { ascending: true })
+  const rows = data ?? []
+  const latest = rows.length ? Number(rows[rows.length - 1].weight) : null
+  await supabase.from('profiles').update({ current_weight: latest }).eq('id', clientId)
+}
+
 // ---- Perímetros ----
 export async function listPerimeters(clientId: string): Promise<PerimeterLog[]> {
   const { data, error } = await supabase
@@ -175,6 +189,11 @@ export async function addPerimeters(
   values: Partial<Record<(typeof PERIMETER_FIELDS)[number]['key'], number>>,
 ) {
   const { error } = await supabase.from('perimeter_logs').insert({ client_id: clientId, ...values })
+  if (error) throw error
+}
+
+export async function deletePerimeter(id: string) {
+  const { error } = await supabase.from('perimeter_logs').delete().eq('id', id)
   if (error) throw error
 }
 

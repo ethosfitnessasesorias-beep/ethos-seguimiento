@@ -3,6 +3,8 @@ import { colors, mut } from '../../theme'
 import {
   addPerimeters,
   addWeight,
+  deletePerimeter,
+  deleteWeight,
   listPerimeters,
   listWeights,
   PERIMETER_FIELDS,
@@ -47,6 +49,39 @@ const ghostBtn: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+const histToggle: React.CSSProperties = {
+  width: '100%',
+  background: 'none',
+  border: 'none',
+  color: mut(0.5),
+  fontFamily: 'inherit',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  textAlign: 'left',
+  padding: '10px 2px 4px',
+}
+
+const histRow: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '9px 0',
+  borderBottom: '1px solid rgba(255,255,255,0.05)',
+}
+
+const delBtn: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: mut(0.4),
+  cursor: 'pointer',
+  fontSize: 14,
+  padding: '2px 4px',
+  lineHeight: 1,
+  flex: 'none',
+}
+
 export default function Metricas({ profile }: { profile: Profile }) {
   const clientId = profile.id
   const [weights, setWeights] = useState<WeightLog[]>([])
@@ -54,6 +89,27 @@ export default function Metricas({ profile }: { profile: Profile }) {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [modal, setModal] = useState<null | 'weight' | 'perim'>(null)
+  const [showWHist, setShowWHist] = useState(false)
+  const [showPHist, setShowPHist] = useState(false)
+
+  const removeWeight = async (id: string) => {
+    if (!confirm('¿Eliminar este registro de peso?')) return
+    try {
+      await deleteWeight(id, clientId)
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo eliminar.')
+    }
+  }
+  const removePerimeter = async (id: string) => {
+    if (!confirm('¿Eliminar este registro de perímetros?')) return
+    try {
+      await deletePerimeter(id)
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo eliminar.')
+    }
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -127,6 +183,27 @@ export default function Metricas({ profile }: { profile: Profile }) {
         <button style={{ ...primaryBtn, marginTop: 8 }} onClick={() => setModal('weight')}>
           + Registrar peso de hoy
         </button>
+
+        {weights.length > 0 && (
+          <>
+            <button onClick={() => setShowWHist((s) => !s)} style={histToggle}>
+              {showWHist ? '▾ Ocultar registros' : `▸ Ver y editar registros (${weights.length})`}
+            </button>
+            {showWHist && (
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+                {[...weights].reverse().map((w) => (
+                  <div key={w.id} style={histRow}>
+                    <span style={{ fontSize: 12.5, color: mut(0.6) }}>{shortDate(w.log_date)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 600 }}>{Number(w.weight)} kg</span>
+                      <button onClick={() => removeWeight(w.id)} title="Eliminar" style={delBtn}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* perímetros */}
@@ -160,6 +237,32 @@ export default function Metricas({ profile }: { profile: Profile }) {
         <button style={{ ...ghostBtn, marginTop: 12 }} onClick={() => setModal('perim')}>
           Registrar perímetros
         </button>
+
+        {perims.length > 0 && (
+          <>
+            <button onClick={() => setShowPHist((s) => !s)} style={histToggle}>
+              {showPHist ? '▾ Ocultar registros' : `▸ Ver y editar registros (${perims.length})`}
+            </button>
+            {showPHist && (
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+                {[...perims].reverse().map((p) => {
+                  const vals = PERIMETER_FIELDS.filter((f) => p[f.key] != null)
+                    .map((f) => `${f.label} ${p[f.key]}`)
+                    .join(' · ')
+                  return (
+                    <div key={p.id} style={{ ...histRow, alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, color: mut(0.7), fontWeight: 600 }}>{shortDate(p.log_date)}</div>
+                        <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2, lineHeight: 1.4 }}>{vals || 'Sin valores'}</div>
+                      </div>
+                      <button onClick={() => removePerimeter(p.id)} title="Eliminar" style={delBtn}>✕</button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* registro fotográfico (con comparativa al tocar 2 fotos) */}
