@@ -22,6 +22,10 @@ export interface Profile {
   adherence: number | null
   messages_read_until: string | null
   trainer_id: string | null
+  contract_signed_at: string | null
+  contract_signature_name: string | null
+  contract_dni: string | null
+  contract_version: string | null
   created_at: string
 }
 

@@ -13,6 +13,7 @@ import type { Profile } from '../../lib/db'
 import { perimeterRows, shortDate, weightChart } from '../../lib/metrics'
 import Modal from '../Modal'
 import ProgressPhotos from '../ProgressPhotos'
+import PhotoCompare from '../PhotoCompare'
 import Composicion from '../Composicion'
 
 const card: React.CSSProperties = {
@@ -166,6 +167,13 @@ export default function Metricas({ profile }: { profile: Profile }) {
       <div style={{ ...card, padding: 17, marginTop: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 13 }}>Registro fotográfico</div>
         <ProgressPhotos clientId={clientId} canUpload columns={3} />
+      </div>
+
+      {/* comparador antes / después */}
+      <div style={{ ...card, padding: 17, marginTop: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Antes / después</div>
+        <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 13 }}>Compara tu evolución entre dos fechas</div>
+        <PhotoCompare clientId={clientId} />
       </div>
 
       {/* composición corporal */}

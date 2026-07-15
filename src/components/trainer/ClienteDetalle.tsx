@@ -14,10 +14,13 @@ import { METRIC_OPTIONS, perimeterRows, perimeterSeries, shortDate, weightSeries
 import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
+import { getClientNote, saveClientNote } from '../../lib/notes'
+import { generateClientReport } from '../../lib/report'
 import Modal from '../Modal'
 import MetricChart from '../MetricChart'
 import Composicion from '../Composicion'
 import ProgressPhotos from '../ProgressPhotos'
+import PhotoCompare from '../PhotoCompare'
 import ClienteAgenda from './ClienteAgenda'
 import ClienteDocumentos from './ClienteDocumentos'
 import type { TrainerTab } from './TrainerApp'
@@ -109,14 +112,34 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
           <HeaderStat label="Objetivo" value={target != null ? String(target) : '—'} color={colors.accent} />
           <HeaderStat label="Cumpl. semana" value={`${stats?.weekPct ?? 0}%`} color={adhColor(stats?.weekPct ?? 0)} />
           <HeaderStat label="Cumpl. plan" value={`${stats?.planPct ?? 0}%`} color={adhColor(stats?.planPct ?? 0)} />
-          <button
-            onClick={() => setEditing(true)}
-            style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-          >
-            Editar ficha
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button
+              onClick={() => setEditing(true)}
+              style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '9px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Editar ficha
+            </button>
+            <button
+              onClick={() => profile && generateClientReport(profile, weights, perims, stats)}
+              style={{ background: 'rgba(219,24,9,0.12)', color: '#f5a99f', border: '1px solid rgba(219,24,9,0.3)', borderRadius: 11, padding: '9px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              ↓ Informe PDF
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* estado del contrato */}
+      {profile && (
+        <div style={{ fontSize: 11.5, color: profile.contract_signed_at ? colors.green : colors.amber, margin: '0 2px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {profile.contract_signed_at
+            ? `✓ Contrato firmado por ${profile.contract_signature_name || name} el ${profile.contract_signed_at.slice(0, 10)}`
+            : '⚠ Contrato pendiente de firma — el cliente no puede usar la app hasta firmarlo.'}
+        </div>
+      )}
+
+      {/* notas privadas del entrenador */}
+      <PrivateNotes clientId={clientId} />
 
       {/* ficha del cliente */}
       {profile && <FichaCard p={profile} />}
@@ -135,11 +158,18 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       ) : tTab === 'evolucion' ? (
         <Evolucion weights={weights} perims={perims} target={target} profile={profile} />
       ) : tTab === 'fotos' ? (
-        <div style={{ ...card, padding: 22 }}>
-          <div style={{ fontSize: 13, color: mut(0.5), marginBottom: 16 }}>
-            Fotos de progreso subidas por {name}, ordenadas por fecha.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ ...card, padding: 22 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Comparar antes / después</div>
+            <div style={{ fontSize: 12.5, color: mut(0.5), marginBottom: 16 }}>Elige dos fechas para ver la evolución lado a lado.</div>
+            <PhotoCompare clientId={clientId} />
           </div>
-          <ProgressPhotos clientId={clientId} columns={4} />
+          <div style={{ ...card, padding: 22 }}>
+            <div style={{ fontSize: 13, color: mut(0.5), marginBottom: 16 }}>
+              Todas las fotos subidas por {name}, ordenadas por fecha.
+            </div>
+            <ProgressPhotos clientId={clientId} columns={4} />
+          </div>
         </div>
       ) : tTab === 'formularios' ? (
         <TrainerForms clientId={clientId} />
@@ -187,6 +217,67 @@ function FichaCard({ p }: { p: Profile }) {
       <div style={{ marginTop: 14 }}>
         <FichaText label="Objetivo principal" value={p.main_goal} />
       </div>
+    </div>
+  )
+}
+
+// Notas privadas del entrenador (el cliente no las ve).
+function PrivateNotes({ clientId }: { clientId: string }) {
+  const [body, setBody] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setLoaded(false)
+    getClientNote(clientId)
+      .then((b) => {
+        setBody(b)
+        setOpen(!!b)
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [clientId])
+
+  const save = async () => {
+    setBusy(true)
+    setSaved(false)
+    try {
+      await saveClientNote(clientId, body)
+      setSaved(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ ...card, padding: '14px 20px', marginTop: 12 }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+        <span style={{ color: mut(0.4), fontSize: 12 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: colors.text, flex: 1, textAlign: 'left' }}>🔒 Notas privadas</span>
+        <span style={{ fontSize: 10.5, color: mut(0.4) }}>solo tú las ves</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <textarea
+            value={body}
+            onChange={(e) => {
+              setBody(e.target.value)
+              setSaved(false)
+            }}
+            placeholder={loaded ? 'Lesiones, preferencias, acuerdos, recordatorios sobre este cliente…' : 'Cargando…'}
+            rows={4}
+            style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5 }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+            <button onClick={save} disabled={busy} style={{ background: colors.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+              {busy ? '…' : 'Guardar nota'}
+            </button>
+            {saved && <span style={{ fontSize: 12, color: colors.green }}>Guardado ✓</span>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

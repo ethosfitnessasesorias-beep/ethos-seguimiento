@@ -42,6 +42,52 @@ export async function getUpcomingEvents(clientIds: string[]): Promise<UpcomingEv
   return (data ?? []) as UpcomingEvent[]
 }
 
+// ---- Clientes en riesgo ----
+// Última fecha de registro de peso por cliente (para detectar inactividad).
+export async function getLastWeightDates(clientIds: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  if (clientIds.length === 0) return map
+  const { data, error } = await supabase
+    .from('weight_logs')
+    .select('client_id, log_date')
+    .in('client_id', clientIds)
+    .order('log_date', { ascending: false })
+  if (error) throw error
+  for (const r of data ?? []) {
+    if (!map.has(r.client_id)) map.set(r.client_id, r.log_date) // el primero = el más reciente
+  }
+  return map
+}
+
+export interface RiskClient {
+  id: string
+  name: string
+  reasons: string[]
+}
+
+const daysBetween = (iso: string): number => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+
+// Detecta clientes en riesgo: baja adherencia, inactividad o contrato sin firmar.
+export function computeAtRisk(
+  clients: { id: string; full_name: string | null; adherence: number | null; contract_signed_at: string | null; created_at: string }[],
+  lastWeight: Map<string, string>,
+): RiskClient[] {
+  const out: RiskClient[] = []
+  for (const c of clients) {
+    const reasons: string[] = []
+    if ((c.adherence ?? 0) < 60) reasons.push(`Adherencia ${c.adherence ?? 0}%`)
+    const lw = lastWeight.get(c.id)
+    if (!lw) {
+      if (daysBetween(c.created_at) > 10) reasons.push('Sin registros de peso')
+    } else if (daysBetween(lw) >= 14) {
+      reasons.push(`${daysBetween(lw)} días sin registrar peso`)
+    }
+    if (!c.contract_signed_at) reasons.push('Contrato sin firmar')
+    if (reasons.length) out.push({ id: c.id, name: c.full_name || 'Cliente', reasons })
+  }
+  return out
+}
+
 // ---- Resumen de equipo (por entrenador) ----
 export interface TeamRow {
   trainer_id: string

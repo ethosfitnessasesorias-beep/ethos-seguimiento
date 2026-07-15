@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
 import { listClients, type Profile } from '../../lib/db'
-import { getUnreviewedForms, getUpcomingEvents, type UnreviewedForm, type UpcomingEvent } from '../../lib/dashboard'
+import { computeAtRisk, getLastWeightDates, getUnreviewedForms, getUpcomingEvents, type RiskClient, type UnreviewedForm, type UpcomingEvent } from '../../lib/dashboard'
 import { EVENT_TYPES, type EventType } from '../../lib/events'
 import { listPendingClaims, markGiftDelivered, milestoneLabel, type PendingClaim } from '../../lib/gifts'
 import type { TrainerTab } from './TrainerApp'
@@ -19,6 +19,7 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
   const [forms, setForms] = useState<UnreviewedForm[]>([])
   const [events, setEvents] = useState<UpcomingEvent[]>([])
   const [gifts, setGifts] = useState<PendingClaim[]>([])
+  const [risk, setRisk] = useState<RiskClient[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -27,10 +28,16 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
       const cs = await listClients()
       setClients(cs)
       const ids = cs.map((c) => c.id)
-      const [f, e, g] = await Promise.all([getUnreviewedForms(ids), getUpcomingEvents(ids), listPendingClaims()])
+      const [f, e, g, lw] = await Promise.all([
+        getUnreviewedForms(ids),
+        getUpcomingEvents(ids),
+        listPendingClaims(),
+        getLastWeightDates(ids),
+      ])
       setForms(f)
       setEvents(e)
       setGifts(g.filter((x) => ids.includes(x.client_id)))
+      setRisk(computeAtRisk(cs, lw))
     } finally {
       setLoading(false)
     }
@@ -58,11 +65,33 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
         <Kpi label="Clientes activos" value={loading ? '…' : String(clients.length)} />
         <Kpi label="Adherencia media" value={loading ? '…' : `${avgAdh}%`} color={adhColor(avgAdh)} />
         <Kpi label="Formularios sin revisar" value={loading ? '…' : String(forms.length)} color={forms.length ? colors.accent : undefined} />
-        <Kpi label="Regalos por entregar" value={loading ? '…' : String(gifts.length)} color={gifts.length ? colors.amber : undefined} />
+        <Kpi label="Clientes en riesgo" value={loading ? '…' : String(risk.length)} color={risk.length ? colors.accent : colors.green} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* clientes en riesgo */}
+          <Expandable title="Clientes en riesgo" count={risk.length} defaultOpen>
+            {risk.length === 0 ? (
+              <Empty>Ningún cliente en riesgo ahora mismo 💪</Empty>
+            ) : (
+              risk.map((r) => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.accent, flex: 'none' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                      {r.reasons.map((reason, i) => (
+                        <span key={i} style={{ fontSize: 10.5, fontWeight: 600, color: colors.amber, background: 'rgba(245,166,35,0.12)', padding: '2px 8px', borderRadius: 999 }}>{reason}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <button onClick={() => onOpenClient(r.id, 'evolucion')} style={linkBtn}>Ver ›</button>
+                </div>
+              ))
+            )}
+          </Expandable>
+
           {/* formularios sin revisar */}
           <Expandable title="Formularios sin revisar" count={forms.length} defaultOpen>
             {forms.length === 0 ? (

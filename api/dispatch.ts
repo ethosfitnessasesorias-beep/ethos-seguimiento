@@ -170,5 +170,36 @@ export default async function handler(req: Req, res: Res) {
     }
   }
 
-  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
+  // 3) Recordatorios de eventos del calendario que son HOY (una sola vez).
+  //    Con hora: se avisa a su hora. Sin hora: se avisa a partir de las 08:00.
+  const TYPE_LABEL: Record<string, string> = {
+    entreno: 'Entrenamiento',
+    cardio: 'Objetivo de cardio',
+    reporte: 'Rellenar tu reporte',
+    cambio: 'Cambio de planificación',
+  }
+  let reminders = 0
+  const { data: todayEvents } = await supabase
+    .from('events')
+    .select('id, client_id, type, title, time, completed, reminded_at')
+    .eq('event_date', today)
+    .is('reminded_at', null)
+    .eq('completed', false)
+  for (const ev of todayEvents ?? []) {
+    try {
+      const at = ev.time || '08:00'
+      if (hhmm < at) continue
+      const what = ev.title || TYPE_LABEL[ev.type] || 'Tienes una tarea'
+      const body = `Recordatorio de hoy: ${what}. ¡A por ello, {nombre}!`
+      const ok = await deliver(ev.client_id, body)
+      if (ok) {
+        await supabase.from('events').update({ reminded_at: new Date().toISOString() }).eq('id', ev.id)
+        reminders++
+      }
+    } catch (e) {
+      errors.push(`event ${ev.id}: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, reminders, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
 }

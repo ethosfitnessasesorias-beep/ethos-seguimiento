@@ -465,3 +465,28 @@ alter table public.push_subscriptions enable row level security;
 drop policy if exists "client manages own push subs" on public.push_subscriptions;
 create policy "client manages own push subs" on public.push_subscriptions
   for all using (client_id = auth.uid()) with check (client_id = auth.uid());
+
+-- ============================================================
+--  v16 · Firma de contrato, notas privadas y recordatorios
+-- ============================================================
+
+-- 1) Firma del contrato inicial (el cliente no entra hasta firmarlo).
+alter table public.profiles add column if not exists contract_signed_at timestamptz;
+alter table public.profiles add column if not exists contract_signature_name text;
+alter table public.profiles add column if not exists contract_dni text;
+alter table public.profiles add column if not exists contract_version text;
+
+-- 2) Notas privadas del entrenador por cliente (el cliente NO las ve).
+create table if not exists public.client_notes (
+  client_id uuid primary key references public.profiles(id) on delete cascade,
+  body text,
+  updated_at timestamptz not null default now()
+);
+alter table public.client_notes enable row level security;
+-- Solo entrenadores (sin política para clientes → invisibles para ellos).
+drop policy if exists "trainer manages client notes" on public.client_notes;
+create policy "trainer manages client notes" on public.client_notes
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+-- 3) Recordatorios automáticos de eventos (marca de envío para no repetir).
+alter table public.events add column if not exists reminded_at timestamptz;

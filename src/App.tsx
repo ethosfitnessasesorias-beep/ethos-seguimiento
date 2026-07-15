@@ -5,6 +5,7 @@ import { upsertProfile } from './lib/db'
 import Login from './screens/Login'
 import Invitacion from './screens/Invitacion'
 import ClientApp from './components/client/ClientApp'
+import ContratoGate from './components/client/ContratoGate'
 import TrainerApp from './components/trainer/TrainerApp'
 
 function readInviteToken(): string | null {
@@ -57,11 +58,12 @@ export default function App() {
   }
   if (!profile) return <ProfileSetup userId={session.user.id} email={session.user.email ?? null} onDone={refreshProfile} />
 
-  return profile.role === 'trainer' ? (
-    <TrainerApp profile={profile} onSignOut={signOut} />
-  ) : (
-    <ClientApp profile={profile} onSignOut={signOut} />
-  )
+  if (profile.role === 'trainer') return <TrainerApp profile={profile} onSignOut={signOut} />
+
+  // El cliente no entra a la app hasta firmar el contrato.
+  if (!profile.contract_signed_at) return <ContratoGate profile={profile} onSigned={refreshProfile} />
+
+  return <ClientApp profile={profile} onSignOut={signOut} />
 }
 
 function Splash() {
