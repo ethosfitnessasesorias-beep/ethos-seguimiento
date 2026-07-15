@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import {
   deleteClientPermanently,
+  deletePerimeter,
+  deleteWeight,
   getProfile,
   listPerimeters,
   listWeights,
@@ -161,7 +163,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       {loading ? (
         <div style={{ fontSize: 13, color: mut(0.4), padding: 20 }}>Cargando datos del cliente…</div>
       ) : tTab === 'evolucion' ? (
-        <Evolucion weights={weights} perims={perims} target={target} profile={profile} />
+        <Evolucion weights={weights} perims={perims} target={target} profile={profile} onChanged={load} />
       ) : tTab === 'fotos' ? (
         <div style={{ ...card, padding: 22 }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Control fotográfico</div>
@@ -395,7 +397,7 @@ function HeaderStat({ label, value, color }: { label: string; value: string; col
   )
 }
 
-function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[]; perims: PerimeterLog[]; target: number | null; profile: Profile | null }) {
+function Evolucion({ weights, perims, target, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; target: number | null; profile: Profile | null; onChanged: () => void }) {
   const [metric, setMetric] = useState('weight')
   const [showAll, setShowAll] = useState(false)
   const rows = perimeterRows(perims)
@@ -453,7 +455,7 @@ function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[];
         >
           {showAll ? '▾ Ocultar todos los registros' : '▸ Ver todos los registros'}
         </button>
-        {showAll && <AllRecords weights={weights} perims={perims} profile={profile} />}
+        {showAll && <AllRecords weights={weights} perims={perims} profile={profile} onChanged={onChanged} />}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -506,12 +508,25 @@ function Evolucion({ weights, perims, target, profile }: { weights: WeightLog[];
 }
 
 // Tabla con TODOS los registros (peso, perímetros y composición) por fecha.
-function AllRecords({ weights, perims, profile }: { weights: WeightLog[]; perims: PerimeterLog[]; profile: Profile | null }) {
+function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; profile: Profile | null; onChanged: () => void }) {
   const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
   const th: React.CSSProperties = { fontSize: 10.5, color: mut(0.4), fontWeight: 600, textAlign: 'right', padding: '6px 8px', whiteSpace: 'nowrap' }
   const td: React.CSSProperties = { fontSize: 12, textAlign: 'right', padding: '7px 8px', whiteSpace: 'nowrap' }
   const wDesc = [...weights].reverse()
   const pDesc = [...perims].reverse()
+
+  const removeWeight = async (id: string) => {
+    if (!profile || !confirm('¿Eliminar este registro de peso del cliente?')) return
+    await deleteWeight(id, profile.id)
+    onChanged()
+  }
+  const removePerim = async (id: string) => {
+    if (!confirm('¿Eliminar este registro de perímetros del cliente?')) return
+    await deletePerimeter(id)
+    onChanged()
+  }
+  const delBtn: React.CSSProperties = { background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 13, padding: '2px 4px', lineHeight: 1, flex: 'none' }
+
   return (
     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div>
@@ -521,9 +536,12 @@ function AllRecords({ weights, perims, profile }: { weights: WeightLog[]; perims
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {wDesc.map((w) => (
-              <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12.5 }}>
+              <div key={w.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12.5 }}>
                 <span style={{ color: mut(0.6) }}>{shortDate(w.log_date)}</span>
-                <span style={{ fontWeight: 600 }}>{Number(w.weight)} kg</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontWeight: 600 }}>{Number(w.weight)} kg</span>
+                  <button onClick={() => removeWeight(w.id)} title="Eliminar" style={delBtn}>✕</button>
+                </div>
               </div>
             ))}
           </div>
@@ -541,6 +559,7 @@ function AllRecords({ weights, perims, profile }: { weights: WeightLog[]; perims
                 {PERIMETER_FIELDS.map((f) => (
                   <th key={f.key} style={th}>{f.label}</th>
                 ))}
+                <th style={th}></th>
               </tr>
             </thead>
             <tbody>
@@ -550,6 +569,7 @@ function AllRecords({ weights, perims, profile }: { weights: WeightLog[]; perims
                   {PERIMETER_FIELDS.map((f) => (
                     <td key={f.key} style={td}>{(p[f.key] as number | null) ?? '—'}</td>
                   ))}
+                  <td style={td}><button onClick={() => removePerim(p.id)} title="Eliminar" style={delBtn}>✕</button></td>
                 </tr>
               ))}
             </tbody>

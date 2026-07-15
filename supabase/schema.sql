@@ -540,6 +540,15 @@ create policy "client writes own doc files" on storage.objects
 alter table public.profiles add column if not exists status text not null default 'active';
 alter table public.profiles add column if not exists deactivated_at timestamptz;
 
+-- El entrenador también puede corregir (borrar) métricas mal anotadas.
+drop policy if exists "trainer manages weights" on public.weight_logs;
+create policy "trainer manages weights" on public.weight_logs
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+drop policy if exists "trainer manages perimeters" on public.perimeter_logs;
+create policy "trainer manages perimeters" on public.perimeter_logs
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
 -- El cliente puede obtener el nombre y el WhatsApp de SU entrenador
 -- (sin exponer el resto de datos del entrenador).
 create or replace function public.get_my_trainer()
