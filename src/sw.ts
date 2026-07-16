@@ -7,6 +7,12 @@ declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: unknown[] }
 // Precarga de la app (lo genera vite-plugin-pwa).
 precacheAndRoute(self.__WB_MANIFEST as never)
 
+// Activa la versión nueva de inmediato, sin tener que cerrar la app dos veces.
+self.skipWaiting()
+self.addEventListener('activate', (event: ExtendableEvent) => {
+  event.waitUntil(self.clients.claim())
+})
+
 // Notificación push recibida → mostrarla.
 self.addEventListener('push', (event: PushEvent) => {
   let title = 'ETHOS GYM'

@@ -15,6 +15,7 @@ import {
   type DocFolder,
   type DocumentWithUrl,
 } from '../../lib/documents'
+import { sendNow } from '../../lib/messages'
 import { FileIcon, Download } from '../icons'
 import Modal from '../Modal'
 
@@ -236,6 +237,7 @@ function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string;
   const [category, setCategory] = useState<DocCategory>('Entrenamiento')
   const [folderId, setFolderId] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
+  const [notify, setNotify] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -249,6 +251,11 @@ function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string;
     setErr(null)
     try {
       await addDocument(clientId, file, title, category, folderId || null)
+      if (notify) {
+        const nombre = title.trim() || file.name
+        // Avisa al cliente por push + email (y le aparece en su campana).
+        await sendNow(clientId, `📄 Tienes un nuevo documento: "${nombre}". Ábrelo en la sección Documentos de tu app.`).catch(() => {})
+      }
       onDone()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo subir.')
@@ -291,8 +298,13 @@ function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string;
       </button>
       <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
 
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer' }}>
+        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} style={{ width: 17, height: 17, accentColor: colors.accent }} />
+        <span style={{ fontSize: 12.5, color: mut(0.7) }}>Avisar al cliente (notificación push + email)</span>
+      </label>
+
       {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 12 }}>{err}</div>}
-      <button onClick={upload} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+      <button onClick={upload} disabled={busy} style={{ width: '100%', marginTop: 14, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
         {busy ? 'Subiendo…' : 'Subir documento'}
       </button>
     </Modal>
