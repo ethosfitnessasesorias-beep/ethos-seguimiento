@@ -62,6 +62,7 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
   const [events, setEvents] = useState<CalEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [programOpen, setProgramOpen] = useState(false)
+  const [editProgram, setEditProgram] = useState<ProgramGroup | null>(null)
   const [addDate, setAddDate] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -245,7 +246,7 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {programs.map((p) => (
-            <ProgramCard key={p.id} p={p} onDelete={() => removeProgram(p.id)} />
+            <ProgramCard key={p.id} p={p} onDelete={() => removeProgram(p.id)} onEdit={() => setEditProgram(p)} />
           ))}
         </div>
       )}
@@ -259,6 +260,19 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
           onDone={(n) => {
             setProgramOpen(false)
             setMsg(`Programa creado: ${n} eventos.`)
+            reload()
+          }}
+        />
+      )}
+
+      {editProgram && (
+        <ProgramModal
+          clientId={clientId}
+          initial={programToInitial(editProgram)}
+          onClose={() => setEditProgram(null)}
+          onDone={(n) => {
+            setEditProgram(null)
+            setMsg(`Programa actualizado: ${n} eventos.`)
             reload()
           }}
         />
@@ -297,6 +311,29 @@ interface ProgramGroup {
   weeks: number
 }
 
+// Valores para reabrir un programa en el editor.
+interface ProgramInitial {
+  id: string
+  name: string
+  pattern: WeekPattern
+  startMonday: string
+  weeks: string
+}
+
+// Reconstruye el patrón semanal a partir de los eventos de un programa.
+function programToInitial(p: ProgramGroup): ProgramInitial {
+  const pattern: WeekPattern = {}
+  const seen = new Set<string>()
+  for (const e of p.events) {
+    const wd = weekdayOfISO(e.event_date)
+    const key = `${wd}|${e.type}|${e.title ?? ''}|${e.time ?? ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    ;(pattern[wd] ||= []).push({ type: e.type, title: e.title ?? undefined, time: e.time ?? undefined })
+  }
+  return { id: p.id, name: p.name, pattern, startMonday: mondayOf(p.from), weeks: String(p.weeks) }
+}
+
 function groupEvents(events: CalEvent[]): { programs: ProgramGroup[] } {
   const map = new Map<string, CalEvent[]>()
   for (const e of events) {
@@ -316,7 +353,7 @@ function groupEvents(events: CalEvent[]): { programs: ProgramGroup[] } {
   return { programs }
 }
 
-function ProgramCard({ p, onDelete }: { p: ProgramGroup; onDelete?: () => void }) {
+function ProgramCard({ p, onDelete, onEdit }: { p: ProgramGroup; onDelete?: () => void; onEdit?: () => void }) {
   const [open, setOpen] = useState(false)
 
   const breakdown = useMemo(() => {
@@ -342,6 +379,11 @@ function ProgramCard({ p, onDelete }: { p: ProgramGroup; onDelete?: () => void }
             </div>
           </div>
         </button>
+        {onEdit && (
+          <button onClick={onEdit} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '6px 11px', color: colors.text, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>
+            Editar
+          </button>
+        )}
         {onDelete && (
           <button onClick={onDelete} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '6px 11px', color: mut(0.55), cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>
             Eliminar
@@ -418,11 +460,11 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
 }
 
 // ---------- Modal: programar semana ----------
-function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose: () => void; onDone: (n: number) => void }) {
-  const [name, setName] = useState('')
-  const [pattern, setPattern] = useState<WeekPattern>({})
-  const [startMonday, setStartMonday] = useState(mondayOf(todayStr()))
-  const [weeks, setWeeks] = useState('4')
+function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string; onClose: () => void; onDone: (n: number) => void; initial?: ProgramInitial }) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [pattern, setPattern] = useState<WeekPattern>(initial?.pattern ?? {})
+  const [startMonday, setStartMonday] = useState(initial?.startMonday ?? mondayOf(todayStr()))
+  const [weeks, setWeeks] = useState(initial?.weeks ?? '4')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [templates, setTemplates] = useState<ProgramTemplate[]>([])
@@ -453,6 +495,8 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
     setBusy(true)
     setErr(null)
     try {
+      // En modo edición, se sustituye el programa: se borran sus eventos y se regeneran.
+      if (initial) await deleteProgram(initial.id)
       const n = await generateProgram(clientId, pattern, startMonday, w, name.trim())
       onDone(n)
     } catch (e) {
@@ -477,7 +521,12 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
   }
 
   return (
-    <Modal title="Programar semana" onClose={onClose}>
+    <Modal title={initial ? 'Editar programa' : 'Programar semana'} onClose={onClose}>
+      {initial && (
+        <div style={{ fontSize: 11.5, color: colors.amber, background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 10, padding: '9px 11px', marginBottom: 12 }}>
+          Al guardar se regenera el programa. Si el cliente ya había marcado eventos como hechos en él, esas marcas se reiniciarán.
+        </div>
+      )}
       <div style={{ maxHeight: '64vh', overflowY: 'auto', paddingRight: 4 }} className="om-scroll">
         <label style={{ display: 'block', marginBottom: 14 }}>
           <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>NOMBRE DEL PROGRAMA</span>
@@ -554,7 +603,7 @@ function ProgramModal({ clientId, onClose, onDone }: { clientId: string; onClose
 
       {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 12 }}>{err}</div>}
       <button onClick={generate} disabled={busy} style={{ width: '100%', marginTop: 14, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-        {busy ? 'Generando…' : 'Generar programa'}
+        {busy ? (initial ? 'Guardando…' : 'Generando…') : initial ? 'Guardar cambios' : 'Generar programa'}
       </button>
     </Modal>
   )
