@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import {
+  addPerimeters,
+  addWeight,
   deleteClientPermanently,
   deletePerimeter,
   deleteWeight,
@@ -19,6 +21,7 @@ import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
 import { getClientNote, saveClientNote } from '../../lib/notes'
+import { giftTimeline, listClaims, removeMilestoneClaim, setMilestoneDelivered, type GiftClaim } from '../../lib/gifts'
 import { generateClientReport } from '../../lib/report'
 import Modal from '../Modal'
 import MetricChart from '../MetricChart'
@@ -148,6 +151,9 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       {/* notas privadas del entrenador */}
       <PrivateNotes clientId={clientId} />
 
+      {/* regalos de fidelidad (gestión) */}
+      {profile && <GiftsManager profile={profile} />}
+
       {/* ficha del cliente */}
       {profile && <FichaCard p={profile} />}
 
@@ -168,9 +174,9 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
         <div style={{ ...card, padding: 22 }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Control fotográfico</div>
           <div style={{ fontSize: 12.5, color: mut(0.5), marginBottom: 16 }}>
-            Fotos de {name}. Toca 2 para compararlas; esa comparativa se incluirá en el informe PDF.
+            Fotos de {name}. Toca 2 para compararlas; esa comparativa se incluirá en el informe PDF. Tú también puedes subir fotos.
           </div>
-          <ProgressPhotos clientId={clientId} columns={4} selectable onCompareChange={setComparePair} />
+          <ProgressPhotos clientId={clientId} columns={4} canUpload selectable onCompareChange={setComparePair} />
         </div>
       ) : tTab === 'formularios' ? (
         <TrainerForms clientId={clientId} />
@@ -400,6 +406,7 @@ function HeaderStat({ label, value, color }: { label: string; value: string; col
 function Evolucion({ weights, perims, target, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; target: number | null; profile: Profile | null; onChanged: () => void }) {
   const [metric, setMetric] = useState('weight')
   const [showAll, setShowAll] = useState(false)
+  const [addModal, setAddModal] = useState<null | 'weight' | 'perim'>(null)
   const rows = perimeterRows(perims)
   const first = weights.length ? Number(weights[0].weight) : null
   const current = weights.length ? Number(weights[weights.length - 1].weight) : null
@@ -449,13 +456,26 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
         </div>
         <MetricChart points={series} color={opt.color} unit={opt.unit} height={240} />
 
+        {/* el entrenador también puede registrar métricas del cliente */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+          <button onClick={() => setAddModal('weight')} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>+ Registrar peso</button>
+          <button onClick={() => setAddModal('perim')} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>+ Registrar perímetros</button>
+        </div>
+
         <button
           onClick={() => setShowAll((s) => !s)}
-          style={{ marginTop: 14, background: 'none', border: 'none', color: colors.accent, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+          style={{ marginTop: 12, background: 'none', border: 'none', color: colors.accent, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}
         >
           {showAll ? '▾ Ocultar todos los registros' : '▸ Ver todos los registros'}
         </button>
         {showAll && <AllRecords weights={weights} perims={perims} profile={profile} onChanged={onChanged} />}
+
+        {addModal === 'weight' && profile && (
+          <TrainerWeightModal clientId={profile.id} onClose={() => setAddModal(null)} onSaved={() => { setAddModal(null); onChanged() }} />
+        )}
+        {addModal === 'perim' && profile && (
+          <TrainerPerimModal clientId={profile.id} onClose={() => setAddModal(null)} onSaved={() => { setAddModal(null); onChanged() }} />
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -694,6 +714,154 @@ function FormAccordion({ f, onToggleReviewed }: { f: FormSubmission; onToggleRev
   )
 }
 
+// ---------- Gestión de regalos de fidelidad (entrenador) ----------
+function GiftsManager({ profile }: { profile: Profile }) {
+  const [claims, setClaims] = useState<GiftClaim[]>([])
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const startISO = profile.start_date ?? profile.created_at
+
+  const load = () => {
+    listClaims(profile.id).then(setClaims).catch(() => {})
+  }
+  useEffect(load, [profile.id])
+
+  const steps = giftTimeline(startISO, claims)
+
+  const toggle = async (key: 'welcome' | '6m' | '12m', delivered: boolean) => {
+    setBusy(true)
+    try {
+      if (delivered) await setMilestoneDelivered(profile.id, key)
+      else await removeMilestoneClaim(profile.id, key)
+      load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ ...card, padding: '14px 20px', marginTop: 12 }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+        <span style={{ color: mut(0.4), fontSize: 12 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: colors.text, flex: 1, textAlign: 'left' }}>🎁 Regalos de fidelidad</span>
+        <span style={{ fontSize: 10.5, color: mut(0.4) }}>{profile.start_date ? `desde ${profile.start_date}` : 'sin fecha de inicio'}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {!profile.start_date && (
+            <div style={{ fontSize: 11.5, color: colors.amber, marginBottom: 4 }}>
+              Pon la <b>fecha de inicio</b> del cliente en «Editar ficha» para que el cronograma sea correcto.
+            </div>
+          )}
+          {steps.map((s) => {
+            const done = s.status === 'delivered' || s.status === 'claimed'
+            return (
+              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
+                  <div style={{ fontSize: 11, color: mut(0.45), marginTop: 1 }}>
+                    {s.date.toLocaleDateString('es-ES')} · {s.status === 'delivered' ? 'entregado' : s.status === 'claimed' ? 'reclamado (pendiente de entregar)' : s.status === 'available' ? 'disponible' : `en ${s.daysRemaining} días`}
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggle(s.key, !done)}
+                  disabled={busy}
+                  style={{ background: done ? colors.surface2 : 'rgba(74,222,128,0.14)', color: done ? mut(0.6) : colors.green, border: `1px solid ${done ? 'rgba(255,255,255,0.12)' : 'rgba(74,222,128,0.4)'}`, borderRadius: 9, padding: '7px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {done ? 'Marcar pendiente' : 'Marcar entregado'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- Modales: el entrenador registra métricas del cliente ----------
+function TrainerWeightModal({ clientId, onClose, onSaved }: { clientId: string; onClose: () => void; onSaved: () => void }) {
+  const [value, setValue] = useState('')
+  const [date, setDate] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const n = parseFloat(value.replace(',', '.'))
+    if (!isFinite(n) || n <= 0) return setErr('Escribe un peso válido.')
+    setBusy(true)
+    setErr(null)
+    try {
+      await addWeight(clientId, n, date || undefined)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Registrar peso del cliente" onClose={onClose}>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Peso (kg)</span>
+        <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="83.6" style={fieldStyle} autoFocus />
+      </label>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Fecha (opcional, por defecto hoy)</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+      </label>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Guardando…' : 'Guardar'}
+      </button>
+    </Modal>
+  )
+}
+
+function TrainerPerimModal({ clientId, onClose, onSaved }: { clientId: string; onClose: () => void; onSaved: () => void }) {
+  const [vals, setVals] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const payload: Record<string, number> = {}
+    for (const f of PERIMETER_FIELDS) {
+      const raw = vals[f.key]?.trim()
+      if (raw) {
+        const n = parseFloat(raw.replace(',', '.'))
+        if (isFinite(n)) payload[f.key] = n
+      }
+    }
+    if (Object.keys(payload).length === 0) return setErr('Rellena al menos un perímetro.')
+    setBusy(true)
+    setErr(null)
+    try {
+      await addPerimeters(clientId, payload)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Registrar perímetros del cliente" onClose={onClose}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {PERIMETER_FIELDS.map((f) => (
+          <label key={f.key} style={{ display: 'block' }}>
+            <span style={labelStyle}>{f.label} (cm)</span>
+            <input value={vals[f.key] ?? ''} onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))} inputMode="decimal" style={fieldStyle} />
+          </label>
+        ))}
+      </div>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Guardando…' : 'Guardar'}
+      </button>
+    </Modal>
+  )
+}
+
 // ---------- Modal: editar ficha del cliente ----------
 function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
@@ -704,6 +872,7 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
     target_weight: profile.target_weight != null ? String(profile.target_weight) : '',
     phone: profile.phone ?? '',
     city: profile.city ?? '',
+    start_date: profile.start_date ?? '',
     injuries: profile.injuries ?? '',
     pathologies: profile.pathologies ?? '',
     main_goal: profile.main_goal ?? '',
@@ -732,6 +901,7 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
         target_weight: num(f.target_weight),
         phone: txt(f.phone),
         city: txt(f.city),
+        start_date: txt(f.start_date),
         injuries: txt(f.injuries),
         pathologies: txt(f.pathologies),
         main_goal: txt(f.main_goal),
@@ -769,6 +939,11 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
             ))}
           </div>
         </div>
+        <label style={{ display: 'block' }}>
+          <span style={labelStyle}>Fecha de inicio (cliente desde)</span>
+          <input type="date" value={f.start_date.slice(0, 10)} onChange={(e) => set('start_date')(e.target.value)} style={fieldStyle} />
+          <span style={{ fontSize: 10.5, color: mut(0.4), display: 'block', marginTop: 4 }}>Desde esta fecha se calculan los regalos de fidelidad (6 y 12 meses).</span>
+        </label>
         <Area label="Lesiones" value={f.injuries} onChange={set('injuries')} />
         <Area label="Patologías y alergias" value={f.pathologies} onChange={set('pathologies')} />
         <Area label="Objetivo principal" value={f.main_goal} onChange={set('main_goal')} />

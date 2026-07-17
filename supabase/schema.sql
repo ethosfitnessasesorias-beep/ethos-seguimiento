@@ -540,6 +540,28 @@ create policy "client writes own doc files" on storage.objects
 alter table public.profiles add column if not exists status text not null default 'active';
 alter table public.profiles add column if not exists deactivated_at timestamptz;
 
+-- ============================================================
+--  v19 · Fecha de inicio del cliente + subida/gestión por el entrenador
+-- ============================================================
+-- Fecha real en la que el cliente empezó (para recalcular los regalos).
+alter table public.profiles add column if not exists start_date date;
+
+-- El entrenador puede subir fotos de progreso del cliente.
+drop policy if exists "trainer manages photos rows" on public.progress_photos;
+create policy "trainer manages photos rows" on public.progress_photos
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+drop policy if exists "trainer writes photo files" on storage.objects;
+create policy "trainer writes photo files" on storage.objects
+  for all to authenticated
+  using (bucket_id = 'progress-photos' and public.my_role() = 'trainer')
+  with check (bucket_id = 'progress-photos' and public.my_role() = 'trainer');
+
+-- El entrenador puede gestionar los regalos (marcar entregados a clientes antiguos).
+drop policy if exists "trainer manages claims" on public.gift_claims;
+create policy "trainer manages claims" on public.gift_claims
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
 -- El entrenador también puede corregir (borrar) métricas mal anotadas.
 drop policy if exists "trainer manages weights" on public.weight_logs;
 create policy "trainer manages weights" on public.weight_logs

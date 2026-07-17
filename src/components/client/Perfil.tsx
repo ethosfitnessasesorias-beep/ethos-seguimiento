@@ -49,9 +49,16 @@ function AdhBar({ label, pct, detail }: { label: string; pct: number; detail: st
   )
 }
 
+function fmtDate(iso: string | null): string | null {
+  if (!iso) return null
+  const [y, m, d] = iso.slice(0, 10).split('-')
+  return `${Number(d)}/${Number(m)}/${y}`
+}
+
 export default function Perfil({ profile }: { profile: Profile }) {
   const p = profile
   const sub = [p.age ? `${p.age} años` : null, p.plan ? `Plan ${p.plan}` : null].filter(Boolean).join(' · ')
+  const since = fmtDate(p.start_date)
   const [stats, setStats] = useState<AdherenceStats | null>(null)
 
   useEffect(() => {
@@ -81,6 +88,7 @@ export default function Perfil({ profile }: { profile: Profile }) {
         <div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>{p.full_name || 'Tu nombre'}</div>
           <div style={{ fontSize: 12.5, color: mut(0.5), marginTop: 3 }}>{sub || 'Completa tu perfil'}</div>
+          {since && <div style={{ fontSize: 11, color: mut(0.4), marginTop: 2 }}>Cliente desde {since}</div>}
           <div
             style={{
               display: 'inline-block',
@@ -132,8 +140,8 @@ export default function Perfil({ profile }: { profile: Profile }) {
         <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 9 }}>Según los eventos que marcas como hechos en tu Agenda.</div>
       </div>
 
-      {/* regalos de fidelidad */}
-      <RegalosFidelidad clientId={p.id} startISO={p.created_at} />
+      {/* regalos de fidelidad (desde la fecha de alta real si está puesta) */}
+      <RegalosFidelidad clientId={p.id} startISO={p.start_date ?? p.created_at} />
 
       {/* lesiones */}
       <div style={sectionLabel(20)}>PERFIL DE LESIONES</div>

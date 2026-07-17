@@ -105,3 +105,21 @@ export async function markGiftDelivered(id: string) {
 export function milestoneLabel(m: Milestone): string {
   return MILESTONES.find((x) => x.key === m)?.label ?? m
 }
+
+// El entrenador marca un regalo como ya entregado (útil para clientes antiguos
+// que ya recibieron su regalo de bienvenida fuera de la app).
+export async function setMilestoneDelivered(clientId: string, milestone: Milestone) {
+  const { error } = await supabase
+    .from('gift_claims')
+    .upsert(
+      { client_id: clientId, milestone, delivered: true, delivered_at: new Date().toISOString() },
+      { onConflict: 'client_id,milestone' },
+    )
+  if (error) throw error
+}
+
+// Deshace la marca (vuelve a dejar el regalo pendiente).
+export async function removeMilestoneClaim(clientId: string, milestone: Milestone) {
+  const { error } = await supabase.from('gift_claims').delete().eq('client_id', clientId).eq('milestone', milestone)
+  if (error) throw error
+}
