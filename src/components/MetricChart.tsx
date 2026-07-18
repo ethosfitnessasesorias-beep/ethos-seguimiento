@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { colors, mut } from '../theme'
 import { chart } from '../lib/chart'
-import { shortDate } from '../lib/metrics'
+import { fullDate } from '../lib/metrics'
 
 export interface MetricPoint {
   date: string // YYYY-MM-DD
@@ -49,11 +49,18 @@ export default function MetricChart({ points, color = colors.accent, unit = '', 
           <circle key={i} cx={pt.cx} cy={pt.cy} r={hover === i ? 6 : 4.5} fill={hover === i ? color : colors.bg} stroke={color} strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
         ))}
         {showAxis &&
-          geo.pts.map((pt, i) => (
-            <text key={`t${i}`} x={pt.cx} y={height - 6} fill={mut(0.4)} fontSize={13} textAnchor="middle" fontFamily="Montserrat">
-              {pt.label}
-            </text>
-          ))}
+          geo.pts.map((pt, i) => {
+            // Solo se etiqueta el AÑO, y una vez por año, para que no se solapen.
+            const yr = points[i].date.slice(0, 4)
+            const prevYr = i > 0 ? points[i - 1].date.slice(0, 4) : null
+            if (i !== 0 && yr === prevYr) return null
+            const anchor = i === 0 ? 'start' : 'middle'
+            return (
+              <text key={`t${i}`} x={i === 0 ? 2 : pt.cx} y={height - 6} fill={mut(0.4)} fontSize={13} textAnchor={anchor} fontFamily="Montserrat">
+                {yr}
+              </text>
+            )
+          })}
         {/* zonas de hover invisibles */}
         {geo.pts.map((pt, i) => (
           <rect
@@ -91,7 +98,7 @@ export default function MetricChart({ points, color = colors.accent, unit = '', 
             {points[hover].value}
             {unit && <span style={{ fontSize: 10, fontWeight: 500, color: mut(0.5) }}> {unit}</span>}
           </div>
-          <div style={{ fontSize: 10.5, color: mut(0.5), marginTop: 1 }}>{shortDate(points[hover].date)}</div>
+          <div style={{ fontSize: 10.5, color: mut(0.5), marginTop: 1 }}>{fullDate(points[hover].date)}</div>
         </div>
       )}
     </div>

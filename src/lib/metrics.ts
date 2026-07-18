@@ -10,6 +10,17 @@ export function shortDate(d: string): string {
   return `${Number(day)} ${MONTHS[Number(m) - 1] ?? ''}`.trim()
 }
 
+// Fecha con año, para las listas de registros. Ej: "3 Nov 2026".
+export function fullDate(d: string): string {
+  const [y, m, day] = d.slice(0, 10).split('-')
+  return `${Number(day)} ${MONTHS[Number(m) - 1] ?? ''} ${y}`.trim()
+}
+
+// Color por signo del cambio: sube = verde, baja = rojo (accent).
+export function changeColor(n: number): string {
+  return n > 0 ? colors.green : n < 0 ? colors.accent : '#9a9a9a'
+}
+
 /** Construye datos de gráfica (línea + área + puntos) a partir de pesos reales. */
 export function weightChart(weights: WeightLog[], w: number, h: number, top: number, bot: number): Chart | null {
   if (weights.length < 2) return null
@@ -28,24 +39,26 @@ function mondayOfISO(iso: string): string {
 
 export interface WeeklyChange {
   weekStart: string // lunes de la semana
-  weight: number // peso representativo (último de la semana)
+  date: string // fecha real del pesaje representativo (último de la semana)
+  weight: number
+  fromDate: string | null // fecha del pesaje anterior comparado
   deltaKg: number | null // diferencia con la semana anterior
   deltaPct: number | null
 }
 
-/** Cambio de peso semana a semana (velocidad de cambio). */
+/** Cambio de peso semana a semana (velocidad de cambio), con el intervalo real. */
 export function weeklyWeightChanges(weights: WeightLog[]): WeeklyChange[] {
   if (weights.length === 0) return []
   const sorted = [...weights].sort((a, b) => (a.log_date < b.log_date ? -1 : 1))
-  // Último peso de cada semana (el más representativo del cierre de semana).
-  const byWeek = new Map<string, number>()
-  for (const w of sorted) byWeek.set(mondayOfISO(w.log_date), Number(w.weight))
+  // Último pesaje de cada semana (peso + su fecha real).
+  const byWeek = new Map<string, { weight: number; date: string }>()
+  for (const w of sorted) byWeek.set(mondayOfISO(w.log_date), { weight: Number(w.weight), date: w.log_date })
   const weeks = [...byWeek.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
-  return weeks.map(([weekStart, weight], i) => {
+  return weeks.map(([weekStart, cur], i) => {
     const prev = i > 0 ? weeks[i - 1][1] : null
-    const deltaKg = prev != null ? +(weight - prev).toFixed(1) : null
-    const deltaPct = prev != null && prev !== 0 ? +(((weight - prev) / prev) * 100).toFixed(1) : null
-    return { weekStart, weight, deltaKg, deltaPct }
+    const deltaKg = prev != null ? +(cur.weight - prev.weight).toFixed(1) : null
+    const deltaPct = prev != null && prev.weight !== 0 ? +(((cur.weight - prev.weight) / prev.weight) * 100).toFixed(1) : null
+    return { weekStart, date: cur.date, weight: cur.weight, fromDate: prev?.date ?? null, deltaKg, deltaPct }
   })
 }
 
@@ -123,9 +136,9 @@ export function perimeterRows(logs: PerimeterLog[]): PerimeterRow[] {
       v: v ?? NaN,
       raw: d,
       delta,
-      dColor: d <= 0 ? colors.green : colors.amber,
+      dColor: changeColor(d),
       total,
-      totalColor: t <= 0 ? colors.green : colors.amber,
+      totalColor: changeColor(t),
     }
   }).filter((r) => !Number.isNaN(r.v))
 

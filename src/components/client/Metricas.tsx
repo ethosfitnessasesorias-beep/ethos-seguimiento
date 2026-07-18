@@ -5,6 +5,7 @@ import {
   addWeight,
   deletePerimeter,
   deleteWeight,
+  updateWeight,
   listPerimeters,
   listWeights,
   PERIMETER_FIELDS,
@@ -12,7 +13,7 @@ import {
   type WeightLog,
 } from '../../lib/db'
 import type { Profile } from '../../lib/db'
-import { perimeterRows, shortDate, weightChart } from '../../lib/metrics'
+import { changeColor, fullDate, perimeterRows, shortDate, weightChart } from '../../lib/metrics'
 import Modal from '../Modal'
 import ProgressPhotos from '../ProgressPhotos'
 import Composicion from '../Composicion'
@@ -91,6 +92,7 @@ export default function Metricas({ profile }: { profile: Profile }) {
   const [modal, setModal] = useState<null | 'weight' | 'perim'>(null)
   const [showWHist, setShowWHist] = useState(false)
   const [showPHist, setShowPHist] = useState(false)
+  const [editW, setEditW] = useState<WeightLog | null>(null)
 
   const removeWeight = async (id: string) => {
     if (!confirm('¿Eliminar este registro de peso?')) return
@@ -157,14 +159,14 @@ export default function Metricas({ profile }: { profile: Profile }) {
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: diff < 0 ? colors.green : colors.amber,
-                background: diff < 0 ? 'rgba(74,222,128,0.12)' : 'rgba(245,166,35,0.12)',
+                color: changeColor(diff),
+                background: diff > 0 ? 'rgba(74,222,128,0.12)' : 'rgba(219,24,9,0.12)',
                 padding: '4px 9px',
                 borderRadius: 999,
                 marginTop: 6,
               }}
             >
-              {diff < 0 ? '▼' : '▲'} {Math.abs(diff)} kg
+              {diff > 0 ? '▲ +' : '▼ '}{diff} kg
             </span>
           )}
         </div>
@@ -190,13 +192,14 @@ export default function Metricas({ profile }: { profile: Profile }) {
               {showWHist ? '▾ Ocultar registros' : `▸ Ver y editar registros (${weights.length})`}
             </button>
             {showWHist && (
-              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginTop: 8, paddingBottom: 4 }} className="om-scroll">
                 {[...weights].reverse().map((w) => (
-                  <div key={w.id} style={histRow}>
-                    <span style={{ fontSize: 12.5, color: mut(0.6) }}>{shortDate(w.log_date)}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 600 }}>{Number(w.weight)} kg</span>
-                      <button onClick={() => removeWeight(w.id)} title="Eliminar" style={delBtn}>✕</button>
+                  <div key={w.id} style={{ flex: 'none', width: 116, background: colors.surface2, borderRadius: 10, padding: '9px 10px' }}>
+                    <div style={{ fontSize: 10, color: mut(0.5) }}>{fullDate(w.log_date)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2 }}>{Number(w.weight)} <span style={{ fontSize: 9.5, color: mut(0.4) }}>kg</span></div>
+                    <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
+                      <button onClick={() => setEditW(w)} style={{ flex: 1, background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 0', color: mut(0.7), cursor: 'pointer', fontFamily: 'inherit', fontSize: 10.5, fontWeight: 600 }}>✎</button>
+                      <button onClick={() => removeWeight(w.id)} title="Eliminar" style={{ background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 8px', color: mut(0.5), cursor: 'pointer', fontFamily: 'inherit', fontSize: 10.5 }}>✕</button>
                     </div>
                   </div>
                 ))}
@@ -252,7 +255,7 @@ export default function Metricas({ profile }: { profile: Profile }) {
                   return (
                     <div key={p.id} style={{ ...histRow, alignItems: 'flex-start' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, color: mut(0.7), fontWeight: 600 }}>{shortDate(p.log_date)}</div>
+                        <div style={{ fontSize: 12.5, color: mut(0.7), fontWeight: 600 }}>{fullDate(p.log_date)}</div>
                         <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2, lineHeight: 1.4 }}>{vals || 'Sin valores'}</div>
                       </div>
                       <button onClick={() => removePerimeter(p.id)} title="Eliminar" style={delBtn}>✕</button>
@@ -285,7 +288,45 @@ export default function Metricas({ profile }: { profile: Profile }) {
       {modal === 'perim' && (
         <PerimModal onClose={() => setModal(null)} onSaved={refresh} clientId={clientId} last={perims[perims.length - 1] ?? null} />
       )}
+      {editW && (
+        <EditWeightModal clientId={clientId} log={editW} onClose={() => setEditW(null)} onSaved={async () => { setEditW(null); await refresh() }} />
+      )}
     </div>
+  )
+}
+
+// ---------- Modal: editar pesaje ----------
+function EditWeightModal({ clientId, log, onClose, onSaved }: { clientId: string; log: WeightLog; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [value, setValue] = useState(String(Number(log.weight)))
+  const [date, setDate] = useState(log.log_date.slice(0, 10))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const n = parseFloat(value.replace(',', '.'))
+    if (!isFinite(n) || n <= 0) return setErr('Escribe un peso válido.')
+    setBusy(true)
+    try {
+      await updateWeight(log.id, clientId, n, date || undefined)
+      await onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Editar pesaje" onClose={onClose}>
+      <NumberField label="Peso (kg)" value={value} onChange={setValue} autoFocus />
+      <label style={{ display: 'block', marginTop: 10 }}>
+        <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Fecha</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%', background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '11px 12px', color: colors.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }} />
+      </label>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button style={{ ...primaryBtn, marginTop: 16, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={save}>
+        {busy ? 'Guardando…' : 'Guardar cambios'}
+      </button>
+    </Modal>
   )
 }
 

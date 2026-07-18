@@ -6,6 +6,7 @@ import {
   deleteClientPermanently,
   deletePerimeter,
   deleteWeight,
+  updateWeight,
   getProfile,
   listPerimeters,
   listWeights,
@@ -16,7 +17,7 @@ import {
   type Profile,
   type WeightLog,
 } from '../../lib/db'
-import { METRIC_OPTIONS, perimeterRows, perimeterSeries, shortDate, weeklyWeightChanges, weightSeries } from '../../lib/metrics'
+import { changeColor, fullDate, METRIC_OPTIONS, perimeterRows, perimeterSeries, weeklyWeightChanges, weightSeries } from '../../lib/metrics'
 import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
@@ -536,31 +537,32 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
   )
 }
 
-// Velocidad de cambio del peso, semana a semana (para ajustar la nutrición).
+// Velocidad de cambio del peso, con el intervalo real (para ajustar la nutrición).
 function WeeklyChangeCard({ weights }: { weights: WeightLog[] }) {
-  const changes = weeklyWeightChanges(weights).filter((w) => w.deltaKg != null)
+  const changes = weeklyWeightChanges(weights).filter((w) => w.deltaKg != null && w.fromDate)
   return (
     <div style={{ ...card, padding: 20 }}>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>Velocidad de cambio</div>
-      <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 13 }}>Diferencia de peso semana a semana</div>
+      <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 13 }}>Cuánto ha cambiado el peso en cada intervalo</div>
       {changes.length === 0 ? (
         <div style={{ fontSize: 12.5, color: mut(0.4) }}>Necesitas registros en al menos 2 semanas distintas.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {[...changes].reverse().slice(0, 10).map((w) => {
-            const down = (w.deltaKg ?? 0) <= 0
-            const color = w.deltaKg === 0 ? mut(0.5) : down ? colors.green : colors.amber
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[...changes].reverse().slice(0, 12).map((w) => {
+            const color = changeColor(w.deltaKg ?? 0)
             return (
-              <div key={w.weekStart} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <span style={{ fontSize: 12, color: mut(0.6) }}>Sem. {shortDate(w.weekStart)}</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                  <span style={{ fontSize: 12.5, color: mut(0.5) }}>{w.weight} kg</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color, width: 62, textAlign: 'right' }}>
+              <div key={w.weekStart} style={{ paddingBottom: 9, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: 11, color: mut(0.5), marginBottom: 3 }}>
+                  del {fullDate(w.fromDate as string)} al {fullDate(w.date)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color }}>
                     {(w.deltaKg ?? 0) > 0 ? '+' : ''}{w.deltaKg} kg
                   </span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color, width: 52, textAlign: 'right' }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color }}>
                     {(w.deltaPct ?? 0) > 0 ? '+' : ''}{w.deltaPct}%
                   </span>
+                  <span style={{ fontSize: 11.5, color: mut(0.45), marginLeft: 'auto' }}>{w.weight} kg</span>
                 </div>
               </div>
             )
@@ -571,6 +573,45 @@ function WeeklyChangeCard({ weights }: { weights: WeightLog[] }) {
   )
 }
 
+// Editar un pesaje ya registrado (valor y/o fecha).
+function TrainerEditWeightModal({ clientId, log, onClose, onSaved }: { clientId: string; log: WeightLog; onClose: () => void; onSaved: () => void }) {
+  const [value, setValue] = useState(String(Number(log.weight)))
+  const [date, setDate] = useState(log.log_date.slice(0, 10))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const n = parseFloat(value.replace(',', '.'))
+    if (!isFinite(n) || n <= 0) return setErr('Escribe un peso válido.')
+    setBusy(true)
+    setErr(null)
+    try {
+      await updateWeight(log.id, clientId, n, date || undefined)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Editar pesaje" onClose={onClose}>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Peso (kg)</span>
+        <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" style={fieldStyle} autoFocus />
+      </label>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Fecha</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+      </label>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Guardando…' : 'Guardar cambios'}
+      </button>
+    </Modal>
+  )
+}
+
 // Tabla con TODOS los registros (peso, perímetros y composición) por fecha.
 function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; profile: Profile | null; onChanged: () => void }) {
   const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
@@ -578,6 +619,8 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
   const td: React.CSSProperties = { fontSize: 12, textAlign: 'right', padding: '7px 8px', whiteSpace: 'nowrap' }
   const wDesc = [...weights].reverse()
   const pDesc = [...perims].reverse()
+
+  const [editW, setEditW] = useState<WeightLog | null>(null)
 
   const removeWeight = async (id: string) => {
     if (!profile || !confirm('¿Eliminar este registro de peso del cliente?')) return
@@ -594,23 +637,33 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
   return (
     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div>
-        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Peso corporal</div>
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Peso corporal <span style={{ fontWeight: 400, color: mut(0.35) }}>· desliza →</span></div>
         {wDesc.length === 0 ? (
           <div style={{ fontSize: 12, color: mut(0.4) }}>Sin registros.</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }} className="om-scroll">
             {wDesc.map((w) => (
-              <div key={w.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12.5 }}>
-                <span style={{ color: mut(0.6) }}>{shortDate(w.log_date)}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontWeight: 600 }}>{Number(w.weight)} kg</span>
-                  <button onClick={() => removeWeight(w.id)} title="Eliminar" style={delBtn}>✕</button>
+              <div key={w.id} style={{ flex: 'none', width: 118, background: colors.surface2, borderRadius: 10, padding: '10px 11px' }}>
+                <div style={{ fontSize: 10.5, color: mut(0.5) }}>{fullDate(w.log_date)}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 3 }}>{Number(w.weight)} <span style={{ fontSize: 10, color: mut(0.4) }}>kg</span></div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <button onClick={() => setEditW(w)} style={{ flex: 1, background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 0', color: mut(0.7), cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>✎ Editar</button>
+                  <button onClick={() => removeWeight(w.id)} title="Eliminar" style={{ background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 9px', color: mut(0.5), cursor: 'pointer', fontFamily: 'inherit', fontSize: 11 }}>✕</button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {editW && profile && (
+        <TrainerEditWeightModal
+          clientId={profile.id}
+          log={editW}
+          onClose={() => setEditW(null)}
+          onSaved={() => { setEditW(null); onChanged() }}
+        />
+      )}
       <div style={{ overflowX: 'auto' }} className="om-scroll">
         <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Perímetros (cm)</div>
         {pDesc.length === 0 ? (
@@ -629,7 +682,7 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
             <tbody>
               {pDesc.map((p) => (
                 <tr key={p.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{shortDate(p.log_date)}</td>
+                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{fullDate(p.log_date)}</td>
                   {PERIMETER_FIELDS.map((f) => (
                     <td key={f.key} style={td}>{(p[f.key] as number | null) ?? '—'}</td>
                   ))}
@@ -662,7 +715,7 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
             <tbody>
               {[...comp].reverse().map((c) => (
                 <tr key={c.date} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{shortDate(c.date)}</td>
+                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{fullDate(c.date)}</td>
                   <td style={td}>{c.fatPct}</td>
                   <td style={td}>{c.fatKg}</td>
                   <td style={td}>{c.musclePct}</td>

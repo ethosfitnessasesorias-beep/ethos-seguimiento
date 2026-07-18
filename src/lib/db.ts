@@ -160,6 +160,22 @@ export async function addWeight(clientId: string, weight: number, logDate?: stri
   await supabase.from('profiles').update({ current_weight: weight }).eq('id', clientId)
 }
 
+// Edita un registro de peso (valor y/o fecha) y resincroniza el peso actual.
+export async function updateWeight(id: string, clientId: string, weight: number, logDate?: string) {
+  const patch: { weight: number; log_date?: string } = { weight }
+  if (logDate) patch.log_date = logDate
+  const { error } = await supabase.from('weight_logs').update(patch).eq('id', id)
+  if (error) throw error
+  const { data } = await supabase
+    .from('weight_logs')
+    .select('weight')
+    .eq('client_id', clientId)
+    .order('log_date', { ascending: true })
+  const rows = data ?? []
+  const latest = rows.length ? Number(rows[rows.length - 1].weight) : null
+  await supabase.from('profiles').update({ current_weight: latest }).eq('id', clientId)
+}
+
 // Borra un registro de peso y recalcula el "peso actual" del perfil.
 export async function deleteWeight(id: string, clientId: string) {
   const { error } = await supabase.from('weight_logs').delete().eq('id', id)
