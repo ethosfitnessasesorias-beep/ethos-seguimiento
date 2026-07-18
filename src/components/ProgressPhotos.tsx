@@ -32,9 +32,11 @@ interface Props {
   onCompareChange?: (pair: ComparePair | null) => void
   /** El entrenador puede enviar la comparativa al cliente. */
   allowSendToClient?: boolean
+  /** Al cambiar (incrementar), abre el selector de archivo automáticamente. */
+  autoPick?: number
 }
 
-export default function ProgressPhotos({ clientId, canUpload = false, columns = 4, selectable = false, onCompareChange, allowSendToClient = false }: Props) {
+export default function ProgressPhotos({ clientId, canUpload = false, columns = 4, selectable = false, onCompareChange, allowSendToClient = false, autoPick = 0 }: Props) {
   const [photos, setPhotos] = useState<PhotoWithUrl[]>([])
   const [folders, setFolders] = useState<PhotoFolder[]>([])
   const [weights, setWeights] = useState<{ log_date: string; weight: number }[]>([])
@@ -71,6 +73,11 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
   useEffect(() => {
     reload()
   }, [reload])
+
+  // Abre el selector de archivo cuando llega la señal (desde un evento de agenda).
+  useEffect(() => {
+    if (autoPick > 0 && canUpload) inputRef.current?.click()
+  }, [autoPick, canUpload])
 
   const weightAt = useCallback(
     (date: string): number | null => {

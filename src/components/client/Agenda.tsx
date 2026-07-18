@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType } from '../../lib/events'
+import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType, type MetricAction } from '../../lib/events'
 import Modal from '../Modal'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -13,10 +13,11 @@ function iso(y: number, m: number, d: number): string {
 interface Props {
   clientId: string
   onOpenForm: (formType: 'reporte' | 'cambio') => void
+  onOpenMetric: (action: MetricAction) => void
   onAdherenceChange?: () => void
 }
 
-export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Props) {
+export default function Agenda({ clientId, onOpenForm, onOpenMetric, onAdherenceChange }: Props) {
   const now = useMemo(() => new Date(), [])
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -216,6 +217,14 @@ export default function Agenda({ clientId, onOpenForm, onAdherenceChange }: Prop
                       style={{ marginTop: 8, background: cfg.color, color: '#0a0a0a', border: 'none', borderRadius: 8, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                     >
                       Rellenar ahora ›
+                    </button>
+                  )}
+                  {cfg.metric && (
+                    <button
+                      onClick={() => onOpenMetric(cfg.metric!)}
+                      style={{ marginTop: 8, background: cfg.color, color: '#0a0a0a', border: 'none', borderRadius: 8, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Registrar ahora ›
                     </button>
                   )}
                 </div>

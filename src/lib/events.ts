@@ -1,24 +1,30 @@
 import { supabase } from './supabase'
 
 // ---- Tipos de evento ----
-export type EventType = 'entreno' | 'cardio' | 'habito' | 'reporte' | 'cambio'
+export type EventType = 'entreno' | 'cardio' | 'habito' | 'peso' | 'perimetros' | 'fotos' | 'reporte' | 'cambio'
+export type MetricAction = 'weight' | 'perim' | 'photo'
 
 export interface EventTypeConfig {
   label: string
   color: string
   /** Si el evento enlaza a un formulario, su tipo. */
   form: 'reporte' | 'cambio' | null
+  /** Si el evento lleva a registrar una métrica. */
+  metric?: MetricAction
 }
 
 export const EVENT_TYPES: Record<EventType, EventTypeConfig> = {
   entreno: { label: 'Entrenamiento', color: '#db1809', form: null },
   cardio: { label: 'Objetivo cardio', color: '#f5a623', form: null },
   habito: { label: 'Hábito', color: '#4ade80', form: null },
+  peso: { label: 'Registrar peso', color: '#60a5fa', form: null, metric: 'weight' },
+  perimetros: { label: 'Registrar perímetros', color: '#f472b6', form: null, metric: 'perim' },
+  fotos: { label: 'Registrar fotos', color: '#facc15', form: null, metric: 'photo' },
   reporte: { label: 'Rellenar reporte', color: '#2dd4bf', form: 'reporte' },
   cambio: { label: 'Cambio de planificación', color: '#a78bfa', form: 'cambio' },
 }
 
-export const EVENT_ORDER: EventType[] = ['entreno', 'cardio', 'habito', 'reporte', 'cambio']
+export const EVENT_ORDER: EventType[] = ['entreno', 'cardio', 'habito', 'peso', 'perimetros', 'fotos', 'reporte', 'cambio']
 
 export interface CalEvent {
   id: string

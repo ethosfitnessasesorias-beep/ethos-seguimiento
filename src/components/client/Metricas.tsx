@@ -83,8 +83,15 @@ const delBtn: React.CSSProperties = {
   flex: 'none',
 }
 
-export default function Metricas({ profile }: { profile: Profile }) {
+interface MetricasProps {
+  profile: Profile
+  initialAction?: 'weight' | 'perim' | 'photo' | null
+  onConsumed?: () => void
+}
+
+export default function Metricas({ profile, initialAction, onConsumed }: MetricasProps) {
   const clientId = profile.id
+  const [photoPick, setPhotoPick] = useState(0)
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [perims, setPerims] = useState<PerimeterLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -129,6 +136,16 @@ export default function Metricas({ profile }: { profile: Profile }) {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // Al llegar desde un evento de la agenda, abre directamente la acción.
+  useEffect(() => {
+    if (!initialAction) return
+    if (initialAction === 'weight') setModal('weight')
+    else if (initialAction === 'perim') setModal('perim')
+    else if (initialAction === 'photo') setPhotoPick((n) => n + 1)
+    onConsumed?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAction])
 
   const latest = weights.length ? Number(weights[weights.length - 1].weight) : null
   const first = weights.length ? Number(weights[0].weight) : null
@@ -272,7 +289,7 @@ export default function Metricas({ profile }: { profile: Profile }) {
       <div style={{ ...card, padding: 17, marginTop: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>Registro fotográfico</div>
         <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 13 }}>Organiza en carpetas. Toca 2 fotos para ver tu antes / después</div>
-        <ProgressPhotos clientId={clientId} canUpload columns={4} selectable />
+        <ProgressPhotos clientId={clientId} canUpload columns={4} selectable autoPick={photoPick} />
       </div>
 
       {/* composición corporal */}

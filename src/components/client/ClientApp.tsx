@@ -35,6 +35,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   const { refreshProfile } = useAuth()
   const [cTab, setCTab] = useState<ClientTab>('perfil')
   const [openFormType, setOpenFormType] = useState<'reporte' | 'cambio' | null>(null)
+  const [openMetricAction, setOpenMetricAction] = useState<'weight' | 'perim' | 'photo' | null>(null)
   const [messages, setMessages] = useState<NotificationItem[]>([])
   const [showNotif, setShowNotif] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -62,6 +63,11 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   const openForm = (formType: 'reporte' | 'cambio') => {
     setOpenFormType(formType)
     setCTab('formularios')
+  }
+
+  const openMetric = (action: 'weight' | 'perim' | 'photo') => {
+    setOpenMetricAction(action)
+    setCTab('metricas')
   }
 
   const tabColor = (k: ClientTab) => (cTab === k ? colors.accent : mut(0.45))
@@ -140,9 +146,9 @@ export default function ClientApp({ profile, onSignOut }: Props) {
           <InstallPrompt />
           <NotifPrompt clientId={profile.id} />
           {cTab === 'perfil' && <Perfil profile={profile} />}
-          {cTab === 'metricas' && <Metricas profile={profile} />}
+          {cTab === 'metricas' && <Metricas profile={profile} initialAction={openMetricAction} onConsumed={() => setOpenMetricAction(null)} />}
           {cTab === 'analisis' && <Analisis clientId={profile.id} />}
-          {cTab === 'calendario' && <Agenda clientId={profile.id} onOpenForm={openForm} onAdherenceChange={refreshProfile} />}
+          {cTab === 'calendario' && <Agenda clientId={profile.id} onOpenForm={openForm} onOpenMetric={openMetric} onAdherenceChange={refreshProfile} />}
           {cTab === 'formularios' && (
             <Formularios profile={profile} initialFormType={openFormType} onConsumed={() => setOpenFormType(null)} />
           )}
