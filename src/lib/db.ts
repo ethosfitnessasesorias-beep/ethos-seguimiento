@@ -209,11 +209,44 @@ export interface ProgressPhoto {
   client_id: string
   log_date: string
   storage_path: string
+  folder_id: string | null
   created_at: string
 }
 
 export interface PhotoWithUrl extends ProgressPhoto {
   url: string | null
+}
+
+export interface PhotoFolder {
+  id: string
+  client_id: string
+  name: string
+  created_at: string
+}
+
+export async function listPhotoFolders(clientId: string): Promise<PhotoFolder[]> {
+  const { data, error } = await supabase
+    .from('photo_folders')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('name', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as PhotoFolder[]
+}
+
+export async function createPhotoFolder(clientId: string, name: string): Promise<void> {
+  const { error } = await supabase.from('photo_folders').insert({ client_id: clientId, name: name.trim() })
+  if (error) throw error
+}
+
+export async function deletePhotoFolder(id: string): Promise<void> {
+  const { error } = await supabase.from('photo_folders').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function movePhoto(photoId: string, folderId: string | null): Promise<void> {
+  const { error } = await supabase.from('progress_photos').update({ folder_id: folderId }).eq('id', photoId)
+  if (error) throw error
 }
 
 export async function listPhotos(clientId: string): Promise<PhotoWithUrl[]> {
@@ -232,14 +265,16 @@ export async function listPhotos(clientId: string): Promise<PhotoWithUrl[]> {
   return rows.map((r) => ({ ...r, url: urlByPath.get(r.storage_path) ?? null }))
 }
 
-export async function addPhoto(clientId: string, file: File): Promise<void> {
+export async function addPhoto(clientId: string, file: File, folderId?: string | null): Promise<void> {
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
   const path = `${clientId}/${crypto.randomUUID()}.${ext}`
   const { error: upErr } = await supabase.storage
     .from(PHOTO_BUCKET)
     .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
   if (upErr) throw upErr
-  const { error } = await supabase.from('progress_photos').insert({ client_id: clientId, storage_path: path })
+  const { error } = await supabase
+    .from('progress_photos')
+    .insert({ client_id: clientId, storage_path: path, folder_id: folderId ?? null })
   if (error) throw error
 }
 

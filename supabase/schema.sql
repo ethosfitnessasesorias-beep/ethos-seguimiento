@@ -562,6 +562,23 @@ drop policy if exists "trainer manages claims" on public.gift_claims;
 create policy "trainer manages claims" on public.gift_claims
   for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
 
+-- Carpetas para organizar las fotos de progreso (cliente y entrenador).
+create table if not exists public.photo_folders (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.photo_folders enable row level security;
+drop policy if exists "client manages own photo folders" on public.photo_folders;
+create policy "client manages own photo folders" on public.photo_folders
+  for all using (client_id = auth.uid()) with check (client_id = auth.uid());
+drop policy if exists "trainer manages photo folders" on public.photo_folders;
+create policy "trainer manages photo folders" on public.photo_folders
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+alter table public.progress_photos add column if not exists folder_id uuid references public.photo_folders(id) on delete set null;
+
 -- Notas privadas de agenda del entrenador (el cliente NO las ve). El servidor
 -- avisa por email al entrenador el día señalado.
 create table if not exists public.agenda_reminders (

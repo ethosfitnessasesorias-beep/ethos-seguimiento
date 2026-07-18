@@ -20,6 +20,7 @@ export interface CompositionResult {
   bonePct: number
   boneKg: number
   leanKg: number
+  reliable: boolean // false si el resultado se salió de rango (medidas probablemente mal)
 }
 
 export interface CompositionMissing {
@@ -46,15 +47,17 @@ export function computeComposition(input: CompositionInput): CompositionResult |
   const neck = input.neck as number
   const hip = input.hip as number
 
-  let fatPct: number
+  let raw: number
   if (input.sex === 'male') {
     const denom = 1.0324 - 0.19077 * log10(Math.max(1, waist - neck)) + 0.15456 * log10(h)
-    fatPct = 495 / denom - 450
+    raw = 495 / denom - 450
   } else {
     const denom = 1.29579 - 0.35004 * log10(Math.max(1, waist + hip - neck)) + 0.221 * log10(h)
-    fatPct = 495 / denom - 450
+    raw = 495 / denom - 450
   }
-  fatPct = Math.min(60, Math.max(3, fatPct))
+  // Fuera de una banda plausible => las medidas probablemente están mal tomadas.
+  const reliable = raw >= 4 && raw <= 55
+  const fatPct = Math.min(60, Math.max(3, raw))
 
   const fatKg = (fatPct / 100) * weight
   const leanKg = weight - fatKg
@@ -70,6 +73,7 @@ export function computeComposition(input: CompositionInput): CompositionResult |
     bonePct: round1((boneKg / weight) * 100),
     boneKg: round1(boneKg),
     leanKg: round1(leanKg),
+    reliable,
   }
 }
 

@@ -268,8 +268,8 @@ export default function Metricas({ profile }: { profile: Profile }) {
       {/* registro fotográfico (con comparativa al tocar 2 fotos) */}
       <div style={{ ...card, padding: 17, marginTop: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>Registro fotográfico</div>
-        <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 13 }}>Toca 2 fotos para ver tu antes / después</div>
-        <ProgressPhotos clientId={clientId} canUpload columns={3} selectable />
+        <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 13 }}>Organiza en carpetas. Toca 2 fotos para ver tu antes / después</div>
+        <ProgressPhotos clientId={clientId} canUpload columns={4} selectable />
       </div>
 
       {/* composición corporal */}

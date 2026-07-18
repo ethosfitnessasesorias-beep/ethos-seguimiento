@@ -174,9 +174,9 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
         <div style={{ ...card, padding: 22 }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Control fotográfico</div>
           <div style={{ fontSize: 12.5, color: mut(0.5), marginBottom: 16 }}>
-            Fotos de {name}. Toca 2 para compararlas; esa comparativa se incluirá en el informe PDF. Tú también puedes subir fotos.
+            Fotos de {name}, organizables en carpetas. Toca 2 para compararlas (se incluye en el informe PDF y puedes descargarla o enviársela). Tú también puedes subir fotos.
           </div>
-          <ProgressPhotos clientId={clientId} columns={4} canUpload selectable onCompareChange={setComparePair} />
+          <ProgressPhotos clientId={clientId} columns={5} canUpload selectable allowSendToClient onCompareChange={setComparePair} />
         </div>
       ) : tTab === 'formularios' ? (
         <TrainerForms clientId={clientId} />

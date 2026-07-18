@@ -38,6 +38,11 @@ export default function Composicion({ sex, heightCm, weight, perim }: Props) {
 
   return (
     <div>
+      {!res.reliable && (
+        <div style={{ fontSize: 11.5, color: '#f5a99f', background: 'rgba(219,24,9,0.1)', border: '1px solid rgba(219,24,9,0.3)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, lineHeight: 1.5 }}>
+          ⚠ Resultado fuera de rango — revisa las medidas de <b>cintura, cuello y cadera</b>. Suele pasar si están tomadas en el sitio equivocado o intercambiadas. (Cintura: a la altura del ombligo · Cuello: justo bajo la nuez · Cadera: por la parte más ancha del glúteo.)
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {items.map((it) => (
           <div key={it.label}>
