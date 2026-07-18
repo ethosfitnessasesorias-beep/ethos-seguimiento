@@ -80,28 +80,53 @@ export interface PerimeterRow {
   key: string
   name: string
   v: number
-  delta: string | null
+  delta: string | null // variación respecto a la medición anterior
   dColor: string
+  total: string | null // variación total desde la primera medición
+  totalColor: string
   barW: string
 }
 
-/** Últimos valores por perímetro y su variación respecto a la medición anterior. */
+/** Últimos valores por perímetro, variación vs. anterior y variación total (desde el inicio). */
 export function perimeterRows(logs: PerimeterLog[]): PerimeterRow[] {
   if (logs.length === 0) return []
   const last = logs[logs.length - 1]
   const prev = logs.length > 1 ? logs[logs.length - 2] : null
+  // Primer valor registrado (no nulo) de cada perímetro.
+  const firstOf = (key: keyof PerimeterLog): number | null => {
+    for (const l of logs) {
+      const val = l[key] as number | null
+      if (val != null) return val
+    }
+    return null
+  }
 
   const rows = PERIMETER_FIELDS.map((f) => {
     const v = last[f.key] as number | null
     const p = prev ? (prev[f.key] as number | null) : null
+    const fst = firstOf(f.key)
     let delta: string | null = null
     let d = 0
     if (v != null && p != null) {
       d = +(v - p).toFixed(1)
       delta = (d > 0 ? '+' : '') + d + ' cm'
     }
-    const down = d <= 0
-    return { key: f.key, name: f.label, v: v ?? NaN, raw: d, delta, dColor: down ? colors.green : colors.amber }
+    let total: string | null = null
+    let t = 0
+    if (v != null && fst != null && logs.length > 1) {
+      t = +(v - fst).toFixed(1)
+      total = (t > 0 ? '+' : '') + t + ' cm'
+    }
+    return {
+      key: f.key,
+      name: f.label,
+      v: v ?? NaN,
+      raw: d,
+      delta,
+      dColor: d <= 0 ? colors.green : colors.amber,
+      total,
+      totalColor: t <= 0 ? colors.green : colors.amber,
+    }
   }).filter((r) => !Number.isNaN(r.v))
 
   const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.raw)))
@@ -111,6 +136,8 @@ export function perimeterRows(logs: PerimeterLog[]): PerimeterRow[] {
     v: r.v,
     delta: r.delta,
     dColor: r.dColor,
+    total: r.total,
+    totalColor: r.totalColor,
     barW: ((Math.abs(r.raw) / maxAbs) * 100).toFixed(0) + '%',
   }))
 }

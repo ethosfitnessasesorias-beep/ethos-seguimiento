@@ -496,19 +496,27 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
         </div>
         <WeeklyChangeCard weights={weights} />
         <div style={{ ...card, padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 13 }}>Perímetros (último)</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>Perímetros</div>
           {rows.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {rows.map((p) => (
-                <div key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <span style={{ fontSize: 12.5, color: mut(0.75) }}>{p.name}</span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{p.v} cm</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: p.dColor, width: 42, textAlign: 'right' }}>{p.delta ?? ''}</span>
+            <>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginBottom: 6 }}>
+                <span style={{ fontSize: 9.5, color: mut(0.35), width: 42, textAlign: 'right' }}>vs ant.</span>
+                <span style={{ fontSize: 9.5, color: mut(0.35), width: 54, textAlign: 'right' }}>TOTAL</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {rows.map((p) => (
+                  <div key={p.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ fontSize: 12.5, color: mut(0.75) }}>{p.name}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 600 }}>{p.v}<span style={{ fontSize: 9.5, color: mut(0.4) }}> cm</span></span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: p.dColor, width: 42, textAlign: 'right' }}>{p.delta ?? ''}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: p.totalColor, width: 54, textAlign: 'right' }}>{p.total ?? '—'}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: mut(0.35), marginTop: 9 }}>TOTAL = diferencia desde la primera medición.</div>
+            </>
           ) : (
             <div style={{ fontSize: 12.5, color: mut(0.4) }}>Sin perímetros registrados aún.</div>
           )}
@@ -856,6 +864,7 @@ function TrainerWeightModal({ clientId, onClose, onSaved }: { clientId: string; 
 
 function TrainerPerimModal({ clientId, onClose, onSaved }: { clientId: string; onClose: () => void; onSaved: () => void }) {
   const [vals, setVals] = useState<Record<string, string>>({})
+  const [date, setDate] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -872,7 +881,7 @@ function TrainerPerimModal({ clientId, onClose, onSaved }: { clientId: string; o
     setBusy(true)
     setErr(null)
     try {
-      await addPerimeters(clientId, payload)
+      await addPerimeters(clientId, payload, date || undefined)
       onSaved()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
@@ -882,6 +891,10 @@ function TrainerPerimModal({ clientId, onClose, onSaved }: { clientId: string; o
 
   return (
     <Modal title="Registrar perímetros del cliente" onClose={onClose}>
+      <label style={{ display: 'block', marginBottom: 10 }}>
+        <span style={labelStyle}>Fecha (opcional, por defecto hoy)</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+      </label>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {PERIMETER_FIELDS.map((f) => (
           <label key={f.key} style={{ display: 'block' }}>

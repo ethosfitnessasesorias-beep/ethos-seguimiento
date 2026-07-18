@@ -188,8 +188,11 @@ export async function listPerimeters(clientId: string): Promise<PerimeterLog[]> 
 export async function addPerimeters(
   clientId: string,
   values: Partial<Record<(typeof PERIMETER_FIELDS)[number]['key'], number>>,
+  logDate?: string,
 ) {
-  const { error } = await supabase.from('perimeter_logs').insert({ client_id: clientId, ...values })
+  const { error } = await supabase
+    .from('perimeter_logs')
+    .insert({ client_id: clientId, ...(logDate ? { log_date: logDate } : {}), ...values })
   if (error) throw error
 }
 
