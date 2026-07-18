@@ -28,6 +28,8 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [folderOpen, setFolderOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [folderSort, setFolderSort] = useState<'name' | 'date'>('date')
+  const [folderFilter, setFolderFilter] = useState('')
 
   const reload = useCallback(async () => {
     try {
@@ -66,10 +68,15 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
     reload()
   }
 
-  // Grupos: una sección por carpeta + "Sin carpeta".
+  // Grupos: una sección por carpeta (ordenadas/filtradas) + "Sin carpeta".
+  const q = folderFilter.trim().toLowerCase()
+  const sortedFolders = [...folders].sort((a, b) =>
+    folderSort === 'date' ? (a.created_at < b.created_at ? 1 : -1) : a.name.localeCompare(b.name),
+  )
+  const shownFolders = q ? sortedFolders.filter((f) => f.name.toLowerCase().includes(q)) : sortedFolders
   const groups: { folder: DocFolder | null; docs: DocumentWithUrl[] }[] = [
-    ...folders.map((f) => ({ folder: f, docs: docs.filter((d) => d.folder_id === f.id) })),
-    { folder: null, docs: docs.filter((d) => !d.folder_id) },
+    ...shownFolders.map((f) => ({ folder: f as DocFolder | null, docs: docs.filter((d) => d.folder_id === f.id) })),
+    ...(q ? [] : [{ folder: null as DocFolder | null, docs: docs.filter((d) => !d.folder_id) }]),
   ]
 
   const folderName = (id: string | null) => folders.find((f) => f.id === id)?.name ?? null
@@ -87,6 +94,17 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
           </button>
         </div>
       </div>
+
+      {folders.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)} placeholder="🔍 Buscar carpeta…" style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 12px', fontFamily: 'inherit', fontSize: 13, outline: 'none', flex: 1, minWidth: 160 }} />
+          <div style={{ display: 'flex', gap: 4, background: colors.surface2, borderRadius: 999, padding: 3 }}>
+            {([['date', 'Fecha'], ['name', 'Nombre']] as ['date' | 'name', string][]).map(([k, l]) => (
+              <button key={k} onClick={() => setFolderSort(k)} style={{ background: folderSort === k ? colors.accent : 'transparent', color: folderSort === k ? '#fff' : mut(0.6), border: 'none', borderRadius: 999, padding: '7px 14px', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ fontSize: 13, color: mut(0.4), padding: 10 }}>Cargando…</div>

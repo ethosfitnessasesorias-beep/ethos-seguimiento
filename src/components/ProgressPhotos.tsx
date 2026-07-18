@@ -48,6 +48,8 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
   const [targetDate, setTargetDate] = useState<string>('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [showCompare, setShowCompare] = useState(false)
+  const [folderSort, setFolderSort] = useState<'name' | 'date'>('date')
+  const [folderFilter, setFolderFilter] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const reload = useCallback(async () => {
@@ -168,9 +170,15 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
       return n
     })
 
+  const q = folderFilter.trim().toLowerCase()
+  const sortedFolders = [...folders].sort((a, b) =>
+    folderSort === 'date' ? (a.created_at < b.created_at ? 1 : -1) : a.name.localeCompare(b.name),
+  )
+  const shownFolders = q ? sortedFolders.filter((f) => f.name.toLowerCase().includes(q)) : sortedFolders
   const groups: { folder: PhotoFolder | null; photos: PhotoWithUrl[] }[] = [
-    { folder: null, photos: photos.filter((p) => !p.folder_id) },
-    ...folders.map((f) => ({ folder: f, photos: photos.filter((p) => p.folder_id === f.id) })),
+    // Con filtro de texto se ocultan las fotos "sin carpeta".
+    ...(q ? [] : [{ folder: null as PhotoFolder | null, photos: photos.filter((p) => !p.folder_id) }]),
+    ...shownFolders.map((f) => ({ folder: f as PhotoFolder | null, photos: photos.filter((p) => p.folder_id === f.id) })),
   ]
 
   return (
@@ -196,6 +204,17 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
             + Carpeta
           </button>
           <input ref={inputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => onFiles(e.target.files)} />
+        </div>
+      )}
+
+      {folders.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)} placeholder="🔍 Buscar carpeta…" style={{ ...selStyle, flex: 1, minWidth: 140 }} />
+          <div style={{ display: 'flex', gap: 4, background: colors.surface2, borderRadius: 999, padding: 3 }}>
+            {([['date', 'Fecha'], ['name', 'Nombre']] as ['date' | 'name', string][]).map(([k, l]) => (
+              <button key={k} onClick={() => setFolderSort(k)} style={{ background: folderSort === k ? colors.accent : 'transparent', color: folderSort === k ? '#fff' : mut(0.6), border: 'none', borderRadius: 999, padding: '6px 12px', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+            ))}
+          </div>
         </div>
       )}
 

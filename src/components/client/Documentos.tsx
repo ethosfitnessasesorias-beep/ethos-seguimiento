@@ -17,6 +17,8 @@ export default function Documentos({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('Todos')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [folderSort, setFolderSort] = useState<'name' | 'date'>('date')
+  const [folderFilter, setFolderFilter] = useState('')
 
   useEffect(() => {
     Promise.all([listDocuments(clientId), listFolders(clientId)])
@@ -42,18 +44,32 @@ export default function Documentos({ clientId }: { clientId: string }) {
 
   const shown = filter === 'Todos' ? docs : docs.filter((d) => d.category === filter)
 
-  // Agrupa por carpeta (las que no tienen, en "General").
+  // Agrupa por carpeta (ordenadas/filtradas); las sueltas, en "General".
+  const q = folderFilter.trim().toLowerCase()
+  const sortedFolders = [...folders].sort((a, b) =>
+    folderSort === 'date' ? (a.created_at < b.created_at ? 1 : -1) : a.name.localeCompare(b.name),
+  )
+  const shownFolders = q ? sortedFolders.filter((f) => f.name.toLowerCase().includes(q)) : sortedFolders
   const groups: { name: string; id: string | null; docs: DocumentWithUrl[] }[] = [
-    ...folders.map((f) => ({ name: f.name, id: f.id as string | null, docs: shown.filter((d) => d.folder_id === f.id) })),
-    { name: 'General', id: null, docs: shown.filter((d) => !d.folder_id) },
+    ...shownFolders.map((f) => ({ name: f.name, id: f.id as string | null, docs: shown.filter((d) => d.folder_id === f.id) })),
+    ...(q ? [] : [{ name: 'General', id: null as string | null, docs: shown.filter((d) => !d.folder_id) }]),
   ].filter((g) => g.docs.length > 0)
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: colors.surface1, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 13, padding: '11px 14px', marginBottom: 14 }}>
-        <Search size={16} stroke={mut(0.4)} strokeWidth={2} />
-        <span style={{ fontSize: 13, color: mut(0.4) }}>Buscar documento…</span>
-      </div>
+      {folders.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, background: colors.surface1, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 13, padding: '10px 12px' }}>
+            <Search size={15} stroke={mut(0.4)} strokeWidth={2} />
+            <input value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)} placeholder="Buscar carpeta…" style={{ flex: 1, background: 'none', border: 'none', color: colors.text, fontFamily: 'inherit', fontSize: 13, outline: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 3, background: colors.surface2, borderRadius: 999, padding: 3, flex: 'none' }}>
+            {([['date', 'Fecha'], ['name', 'A-Z']] as ['date' | 'name', string][]).map(([k, l]) => (
+              <button key={k} onClick={() => setFolderSort(k)} style={{ background: folderSort === k ? colors.accent : 'transparent', color: folderSort === k ? '#fff' : mut(0.6), border: 'none', borderRadius: 999, padding: '7px 12px', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="om-scroll" style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' }}>
         {chips.map((c) => (
