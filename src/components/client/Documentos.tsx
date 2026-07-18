@@ -16,12 +16,14 @@ export default function Documentos({ clientId }: { clientId: string }) {
   const [folders, setFolders] = useState<DocFolder[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('Todos')
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     Promise.all([listDocuments(clientId), listFolders(clientId)])
       .then(([d, f]) => {
         setDocs(d)
         setFolders(f)
+        setCollapsed(new Set(f.map((x) => x.id))) // carpetas plegadas por defecto
       })
       .catch(() => {
         setDocs([])
@@ -29,6 +31,14 @@ export default function Documentos({ clientId }: { clientId: string }) {
       })
       .finally(() => setLoading(false))
   }, [clientId])
+
+  const toggleFolder = (id: string) =>
+    setCollapsed((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
 
   const shown = filter === 'Todos' ? docs : docs.filter((d) => d.category === filter)
 
@@ -65,11 +75,16 @@ export default function Documentos({ clientId }: { clientId: string }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {groups.map((g) => (
+          {groups.map((g) => {
+            const isCollapsed = g.id ? collapsed.has(g.id) : false
+            return (
             <div key={g.id ?? 'general'}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: mut(0.6), marginBottom: 9, paddingLeft: 2 }}>
-                {g.id ? `📁 ${g.name}` : 'General'}
-              </div>
+              <button onClick={() => g.id && toggleFolder(g.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: g.id ? 'pointer' : 'default', fontFamily: 'inherit', padding: 0, marginBottom: 9, color: mut(0.6) }}>
+                {g.id && <span style={{ fontSize: 11, color: mut(0.4) }}>{isCollapsed ? '▸' : '▾'}</span>}
+                <span style={{ fontSize: 12, fontWeight: 700 }}>{g.id ? `📁 ${g.name}` : 'General'}</span>
+                <span style={{ fontSize: 11, color: mut(0.4) }}>{g.docs.length}</span>
+              </button>
+              {!isCollapsed && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {g.docs.map((d) => {
                   const st = catStyle(d.category)
@@ -96,8 +111,10 @@ export default function Documentos({ clientId }: { clientId: string }) {
                   )
                 })}
               </div>
+              )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -27,12 +27,14 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [folderOpen, setFolderOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const reload = useCallback(async () => {
     try {
       const [d, f] = await Promise.all([listDocuments(clientId), listFolders(clientId)])
       setDocs(d)
       setFolders(f)
+      setCollapsed(new Set(f.map((x) => x.id))) // carpetas plegadas por defecto
     } catch {
       setDocs([])
       setFolders([])
@@ -40,6 +42,14 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
       setLoading(false)
     }
   }, [clientId])
+
+  const toggleFolder = (id: string) =>
+    setCollapsed((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
 
   useEffect(() => {
     reload()
@@ -88,20 +98,22 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {groups.map((g) => {
             if (g.folder === null && g.docs.length === 0) return null
+            const isCollapsed = g.folder ? collapsed.has(g.folder.id) : false
             return (
               <div key={g.folder?.id ?? 'root'}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>
-                    {g.folder ? `📁 ${g.folder.name}` : 'Sin carpeta'}
-                  </span>
-                  <span style={{ fontSize: 11, color: mut(0.4) }}>{g.docs.length}</span>
+                  <button onClick={() => g.folder && toggleFolder(g.folder.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: g.folder ? 'pointer' : 'default', fontFamily: 'inherit', padding: 0, color: colors.text }}>
+                    {g.folder && <span style={{ fontSize: 11, color: mut(0.4) }}>{isCollapsed ? '▸' : '▾'}</span>}
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{g.folder ? `📁 ${g.folder.name}` : 'Sin carpeta'}</span>
+                    <span style={{ fontSize: 11, color: mut(0.4) }}>{g.docs.length}</span>
+                  </button>
                   {g.folder && (
                     <button onClick={() => removeFolder(g.folder!)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
                       Eliminar carpeta
                     </button>
                   )}
                 </div>
-                {g.docs.length === 0 ? (
+                {!isCollapsed && (g.docs.length === 0 ? (
                   <div style={{ fontSize: 12, color: mut(0.35), padding: '2px 2px 6px' }}>Carpeta vacía. Sube un documento y elige esta carpeta.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -119,7 +131,7 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
                       />
                     ))}
                   </div>
-                )}
+                ))}
               </div>
             )
           })}
