@@ -562,6 +562,22 @@ drop policy if exists "trainer manages claims" on public.gift_claims;
 create policy "trainer manages claims" on public.gift_claims
   for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
 
+-- Notas privadas de agenda del entrenador (el cliente NO las ve). El servidor
+-- avisa por email al entrenador el día señalado.
+create table if not exists public.agenda_reminders (
+  id uuid primary key default gen_random_uuid(),
+  trainer_id uuid not null references public.profiles(id) on delete cascade,
+  client_id uuid references public.profiles(id) on delete cascade,
+  remind_date date not null,
+  body text not null,
+  notified_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.agenda_reminders enable row level security;
+drop policy if exists "trainer manages own reminders" on public.agenda_reminders;
+create policy "trainer manages own reminders" on public.agenda_reminders
+  for all using (trainer_id = auth.uid()) with check (trainer_id = auth.uid());
+
 -- El entrenador también puede corregir (borrar) métricas mal anotadas.
 drop policy if exists "trainer manages weights" on public.weight_logs;
 create policy "trainer manages weights" on public.weight_logs

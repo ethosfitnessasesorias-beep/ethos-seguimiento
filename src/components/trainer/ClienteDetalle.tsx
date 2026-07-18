@@ -16,7 +16,7 @@ import {
   type Profile,
   type WeightLog,
 } from '../../lib/db'
-import { METRIC_OPTIONS, perimeterRows, perimeterSeries, shortDate, weightSeries } from '../../lib/metrics'
+import { METRIC_OPTIONS, perimeterRows, perimeterSeries, shortDate, weeklyWeightChanges, weightSeries } from '../../lib/metrics'
 import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
@@ -494,6 +494,7 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
             />
           </div>
         </div>
+        <WeeklyChangeCard weights={weights} />
         <div style={{ ...card, padding: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 13 }}>Perímetros (último)</div>
           {rows.length > 0 ? (
@@ -523,6 +524,41 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+// Velocidad de cambio del peso, semana a semana (para ajustar la nutrición).
+function WeeklyChangeCard({ weights }: { weights: WeightLog[] }) {
+  const changes = weeklyWeightChanges(weights).filter((w) => w.deltaKg != null)
+  return (
+    <div style={{ ...card, padding: 20 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>Velocidad de cambio</div>
+      <div style={{ fontSize: 11, color: mut(0.4), marginBottom: 13 }}>Diferencia de peso semana a semana</div>
+      {changes.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: mut(0.4) }}>Necesitas registros en al menos 2 semanas distintas.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {[...changes].reverse().slice(0, 10).map((w) => {
+            const down = (w.deltaKg ?? 0) <= 0
+            const color = w.deltaKg === 0 ? mut(0.5) : down ? colors.green : colors.amber
+            return (
+              <div key={w.weekStart} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <span style={{ fontSize: 12, color: mut(0.6) }}>Sem. {shortDate(w.weekStart)}</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <span style={{ fontSize: 12.5, color: mut(0.5) }}>{w.weight} kg</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color, width: 62, textAlign: 'right' }}>
+                    {(w.deltaKg ?? 0) > 0 ? '+' : ''}{w.deltaKg} kg
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color, width: 52, textAlign: 'right' }}>
+                    {(w.deltaPct ?? 0) > 0 ? '+' : ''}{w.deltaPct}%
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

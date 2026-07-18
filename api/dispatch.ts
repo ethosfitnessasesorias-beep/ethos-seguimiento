@@ -205,5 +205,31 @@ export default async function handler(req: Req, res: Res) {
     }
   }
 
-  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, reminders, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
+  // 4) Notas privadas de agenda del entrenador que tocan hoy → email al entrenador.
+  let agenda = 0
+  if (EMAIL_ENABLED) {
+    const { data: rems } = await supabase
+      .from('agenda_reminders')
+      .select('id, trainer_id, client_id, remind_date, body')
+      .lte('remind_date', today)
+      .is('notified_at', null)
+    for (const r of rems ?? []) {
+      try {
+        const { data: t } = await supabase.from('profiles').select('email, full_name').eq('id', r.trainer_id).maybeSingle()
+        if (!t?.email) continue
+        let clientName = ''
+        if (r.client_id) {
+          const { data: c } = await supabase.from('profiles').select('full_name').eq('id', r.client_id).maybeSingle()
+          clientName = c?.full_name ? ` · ${c.full_name}` : ''
+        }
+        await sendEmail(t.email, `ETHOS · Recordatorio de agenda${clientName}`, `Recordatorio para hoy${clientName}:\n\n${r.body}`)
+        await supabase.from('agenda_reminders').update({ notified_at: new Date().toISOString() }).eq('id', r.id)
+        agenda++
+      } catch (e) {
+        errors.push(`agenda ${r.id}: ${e instanceof Error ? e.message : e}`)
+      }
+    }
+  }
+
+  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, reminders, agenda, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
 }

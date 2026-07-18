@@ -17,6 +17,38 @@ export function weightChart(weights: WeightLog[], w: number, h: number, top: num
   return chart(series, w, h, top, bot)
 }
 
+// Lunes (YYYY-MM-DD) de la semana de una fecha ISO.
+function mondayOfISO(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  const off = (dt.getDay() + 6) % 7 // 0 = lunes
+  dt.setDate(dt.getDate() - off)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
+export interface WeeklyChange {
+  weekStart: string // lunes de la semana
+  weight: number // peso representativo (último de la semana)
+  deltaKg: number | null // diferencia con la semana anterior
+  deltaPct: number | null
+}
+
+/** Cambio de peso semana a semana (velocidad de cambio). */
+export function weeklyWeightChanges(weights: WeightLog[]): WeeklyChange[] {
+  if (weights.length === 0) return []
+  const sorted = [...weights].sort((a, b) => (a.log_date < b.log_date ? -1 : 1))
+  // Último peso de cada semana (el más representativo del cierre de semana).
+  const byWeek = new Map<string, number>()
+  for (const w of sorted) byWeek.set(mondayOfISO(w.log_date), Number(w.weight))
+  const weeks = [...byWeek.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))
+  return weeks.map(([weekStart, weight], i) => {
+    const prev = i > 0 ? weeks[i - 1][1] : null
+    const deltaKg = prev != null ? +(weight - prev).toFixed(1) : null
+    const deltaPct = prev != null && prev !== 0 ? +(((weight - prev) / prev) * 100).toFixed(1) : null
+    return { weekStart, weight, deltaKg, deltaPct }
+  })
+}
+
 export interface SeriesPointDated {
   date: string
   value: number

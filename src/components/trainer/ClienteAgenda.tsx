@@ -32,6 +32,7 @@ import {
   type Message,
   type MessageSchedule,
 } from '../../lib/messages'
+import { addReminder, deleteReminder, listReminders, type AgendaReminder } from '../../lib/reminders'
 import Modal from '../Modal'
 
 const card: React.CSSProperties = { background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }
@@ -250,6 +251,8 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
           ))}
         </div>
       )}
+
+      <RemindersSection clientId={clientId} />
 
       <MessagesSection clientId={clientId} />
 
@@ -606,6 +609,98 @@ function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string
         {busy ? (initial ? 'Guardando…' : 'Generando…') : initial ? 'Guardar cambios' : 'Generar programa'}
       </button>
     </Modal>
+  )
+}
+
+// ---------- Notas privadas de agenda (recordatorios por email) ----------
+function RemindersSection({ clientId }: { clientId: string }) {
+  const [items, setItems] = useState<AgendaReminder[]>([])
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState(todayStr())
+  const [body, setBody] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const reload = useCallback(() => {
+    listReminders(clientId).then(setItems).catch(() => {})
+  }, [clientId])
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  const add = async () => {
+    if (!body.trim()) return setErr('Escribe la nota.')
+    setBusy(true)
+    setErr(null)
+    try {
+      await addReminder(clientId, date, body.trim())
+      setBody('')
+      setOpen(false)
+      reload()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const today = todayStr()
+
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>🔒 Notas privadas de agenda</div>
+          <div style={{ fontSize: 12, color: mut(0.5), marginTop: 2 }}>Solo tú las ves. Te avisamos por email el día señalado. (Ej: hacer nueva planificación, pedir fotos…)</div>
+        </div>
+        <button onClick={() => setOpen((o) => !o)} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 16px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          {open ? 'Cancelar' : '+ Nueva nota'}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ ...card, padding: 16, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10, alignItems: 'end' }}>
+            <label>
+              <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Día del aviso</span>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+            </label>
+            <label>
+              <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Nota</span>
+              <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Ej: Preparar nueva planificación / pedir fotos de progreso" style={fieldStyle} />
+            </label>
+          </div>
+          {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+          <button onClick={add} disabled={busy} style={{ marginTop: 12, background: colors.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 18px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+            {busy ? 'Guardando…' : 'Guardar nota'}
+          </button>
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        <div style={{ ...card, border: '1px dashed rgba(255,255,255,0.1)', padding: '18px', textAlign: 'center', fontSize: 12.5, color: mut(0.4) }}>
+          Sin notas de agenda para este cliente.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map((r) => {
+            const past = r.remind_date < today
+            const isToday = r.remind_date === today
+            return (
+              <div key={r.id} style={{ ...card, padding: '12px 15px', display: 'flex', alignItems: 'center', gap: 12, borderLeft: `3px solid ${isToday ? colors.accent : past ? 'rgba(255,255,255,0.15)' : colors.amber}` }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, lineHeight: 1.4, color: past ? mut(0.5) : colors.text }}>{r.body}</div>
+                  <div style={{ fontSize: 10.5, marginTop: 3, fontWeight: 600, color: isToday ? colors.accent : past ? mut(0.4) : colors.amber }}>
+                    {isToday ? '📌 Hoy' : past ? `Pasado · ${r.remind_date}${r.notified_at ? ' · avisado' : ''}` : `Aviso el ${r.remind_date}`}
+                  </div>
+                </div>
+                <button onClick={() => deleteReminder(r.id).then(reload)} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 15 }}>✕</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
