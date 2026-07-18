@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import { Mail, Phone, Pin } from '../icons'
 import type { Profile } from '../../lib/db'
-import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
+import { getAdherenceStats, type AdherenceStats, type FormLink, type MetricAction } from '../../lib/events'
 import RegalosFidelidad from './RegalosFidelidad'
+import Hoy from './Hoy'
 
 const sectionLabel = (mt = 14): React.CSSProperties => ({
   fontSize: 11,
@@ -55,7 +56,15 @@ function fmtDate(iso: string | null): string | null {
   return `${Number(d)}/${Number(m)}/${y}`
 }
 
-export default function Perfil({ profile }: { profile: Profile }) {
+interface PerfilProps {
+  profile: Profile
+  onOpenForm: (f: FormLink) => void
+  onOpenMetric: (m: MetricAction) => void
+  onOpenWhatsApp: (msg: string) => void
+  onAdherenceChange?: () => void
+}
+
+export default function Perfil({ profile, onOpenForm, onOpenMetric, onOpenWhatsApp, onAdherenceChange }: PerfilProps) {
   const p = profile
   const sub = [p.age ? `${p.age} años` : null, p.plan ? `Plan ${p.plan}` : null].filter(Boolean).join(' · ')
   const since = fmtDate(p.start_date)
@@ -67,6 +76,9 @@ export default function Perfil({ profile }: { profile: Profile }) {
 
   return (
     <div>
+      {/* vista de HOY + tareas pendientes */}
+      <Hoy clientId={p.id} onOpenForm={onOpenForm} onOpenMetric={onOpenMetric} onOpenWhatsApp={onOpenWhatsApp} onDone={onAdherenceChange} />
+
       {/* identity */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 15, marginBottom: 20 }}>
         <div

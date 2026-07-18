@@ -1,16 +1,23 @@
 import { supabase } from './supabase'
 
 // ---- Tipos de evento ----
-export type EventType = 'entreno' | 'cardio' | 'habito' | 'peso' | 'perimetros' | 'fotos' | 'reporte' | 'cambio'
+export type EventType =
+  | 'entreno' | 'cardio' | 'habito'
+  | 'peso' | 'perimetros' | 'fotos'
+  | 'nutricion' | 'reporte' | 'cambio' | 'encuesta'
+  | 'video' | 'comida'
 export type MetricAction = 'weight' | 'perim' | 'photo'
+export type FormLink = 'reporte' | 'cambio' | 'encuesta' | 'nutricion'
 
 export interface EventTypeConfig {
   label: string
   color: string
   /** Si el evento enlaza a un formulario, su tipo. */
-  form: 'reporte' | 'cambio' | null
+  form: FormLink | null
   /** Si el evento lleva a registrar una métrica. */
   metric?: MetricAction
+  /** Si el evento abre WhatsApp del coach con un mensaje. */
+  wa?: string
 }
 
 export const EVENT_TYPES: Record<EventType, EventTypeConfig> = {
@@ -20,11 +27,20 @@ export const EVENT_TYPES: Record<EventType, EventTypeConfig> = {
   peso: { label: 'Registrar peso', color: '#60a5fa', form: null, metric: 'weight' },
   perimetros: { label: 'Registrar perímetros', color: '#f472b6', form: null, metric: 'perim' },
   fotos: { label: 'Registrar fotos', color: '#facc15', form: null, metric: 'photo' },
+  nutricion: { label: 'Registro nutricional', color: '#34d399', form: 'nutricion' },
   reporte: { label: 'Rellenar reporte', color: '#2dd4bf', form: 'reporte' },
   cambio: { label: 'Cambio de planificación', color: '#a78bfa', form: 'cambio' },
+  encuesta: { label: 'Encuesta de satisfacción', color: '#22d3ee', form: 'encuesta' },
+  video: { label: 'Enviar vídeos al coach', color: '#fb923c', form: null, wa: 'Hola, estos son mis vídeos de esta semana:' },
+  comida: { label: 'Enviar foto de comida', color: '#e879f9', form: null, wa: 'Hola, esta es una de mis comidas de hoy:' },
 }
 
-export const EVENT_ORDER: EventType[] = ['entreno', 'cardio', 'habito', 'peso', 'perimetros', 'fotos', 'reporte', 'cambio']
+export const EVENT_ORDER: EventType[] = [
+  'entreno', 'cardio', 'habito',
+  'peso', 'perimetros', 'fotos',
+  'nutricion', 'reporte', 'cambio', 'encuesta',
+  'video', 'comida',
+]
 
 export interface CalEvent {
   id: string
@@ -190,17 +206,19 @@ interface ProgramRow {
   program_name: string
 }
 
-/** Genera eventos concretos aplicando un patrón semanal desde una fecha, N semanas. */
+/** Genera eventos aplicando un patrón semanal desde una fecha, N semanas, cada `intervalWeeks`. */
 export async function generateProgram(
   clientId: string,
   pattern: WeekPattern,
   startMondayISO: string,
   weeks: number,
   programName: string,
+  intervalWeeks = 1,
 ) {
   const programId = crypto.randomUUID()
   const rows: ProgramRow[] = []
-  for (let w = 0; w < weeks; w++) {
+  const step = Math.max(1, intervalWeeks)
+  for (let w = 0; w < weeks; w += step) {
     for (let day = 0; day <= 6; day++) {
       const entries = pattern[day] || []
       if (entries.length === 0) continue

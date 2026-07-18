@@ -424,6 +424,7 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
   const [title, setTitle] = useState('')
   const [time, setTime] = useState('')
   const [repeat, setRepeat] = useState(false)
+  const [everyWeeks, setEveryWeeks] = useState('1')
   const [endDate, setEndDate] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -436,13 +437,14 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
       if (!repeat) {
         await addEvent(clientId, { event_date: date, type, title: title.trim() || undefined, time: time.trim() || undefined })
       } else {
-        // Repetición semanal: se crea como un mini-programa (agrupado, editable/borrable).
+        // Repetición periódica: se crea como un mini-programa (agrupado, editable/borrable).
         const wd = weekdayOfISO(date)
         const start = mondayOf(date)
+        const interval = Math.max(1, parseInt(everyWeeks, 10) || 1)
         const FOREVER_WEEKS = 52
         const weeks = endDate ? weeksBetween(start, mondayOf(endDate)) : FOREVER_WEEKS
         const pattern: WeekPattern = { [wd]: [{ type, title: title.trim() || undefined, time: time.trim() || undefined }] }
-        await generateProgram(clientId, pattern, start, Math.max(1, weeks), title.trim() || EVENT_TYPES[type].label)
+        await generateProgram(clientId, pattern, start, Math.max(1, weeks), title.trim() || EVENT_TYPES[type].label, interval)
       }
       onDone()
     } catch (e) {
@@ -477,16 +479,29 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', marginBottom: repeat ? 10 : 0 }}>
         <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} style={{ width: 17, height: 17, accentColor: colors.accent }} />
-        <span style={{ fontSize: 13, color: mut(0.8) }}>Repetir cada semana ({DAYS[weekdayOfISO(date)]})</span>
+        <span style={{ fontSize: 13, color: mut(0.8) }}>Repetir los {DAYS[weekdayOfISO(date)].toLowerCase()}</span>
       </label>
       {repeat && (
         <>
-          <label style={{ display: 'block' }}>
-            <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Hasta (opcional)</span>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={date} style={fieldStyle} />
-          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <label>
+              <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Cada</span>
+              <select value={everyWeeks} onChange={(e) => setEveryWeeks(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+                <option value="1">1 semana</option>
+                <option value="2">2 semanas</option>
+                <option value="3">3 semanas</option>
+                <option value="4">4 semanas</option>
+                <option value="6">6 semanas</option>
+                <option value="8">8 semanas</option>
+              </select>
+            </label>
+            <label>
+              <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Hasta (opcional)</span>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={date} style={fieldStyle} />
+            </label>
+          </div>
           <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 6 }}>
-            {endDate ? `Se repetirá cada ${DAYS[weekdayOfISO(date)].toLowerCase()} hasta esa fecha.` : 'Sin fecha de fin: se genera 1 año de repeticiones.'}
+            {everyWeeks === '1' ? 'Cada' : `Cada ${everyWeeks}`} semana{everyWeeks === '1' ? '' : 's'}, los {DAYS[weekdayOfISO(date)].toLowerCase()}{endDate ? ` hasta el ${endDate}` : ' durante 1 año (sin fecha fin)'}.
           </div>
         </>
       )}

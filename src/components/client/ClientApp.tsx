@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import { getMyTrainer, whatsappLink, type Profile } from '../../lib/db'
+import type { FormLink } from '../../lib/events'
 import { useAuth } from '../../lib/auth'
 import { listNotifications, type NotificationItem } from '../../lib/messages'
 import { Bell, User, Pulse, BarChart, Calendar, FileIcon, Clipboard, Gear } from '../icons'
@@ -34,7 +35,7 @@ interface Props {
 export default function ClientApp({ profile, onSignOut }: Props) {
   const { refreshProfile } = useAuth()
   const [cTab, setCTab] = useState<ClientTab>('perfil')
-  const [openFormType, setOpenFormType] = useState<'reporte' | 'cambio' | null>(null)
+  const [openFormType, setOpenFormType] = useState<FormLink | null>(null)
   const [openMetricAction, setOpenMetricAction] = useState<'weight' | 'perim' | 'photo' | null>(null)
   const [messages, setMessages] = useState<NotificationItem[]>([])
   const [showNotif, setShowNotif] = useState(false)
@@ -60,7 +61,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   useEffect(loadMessages, [profile.id, profile.messages_read_until])
   const unread = messages.filter((m) => !m.read).length
 
-  const openForm = (formType: 'reporte' | 'cambio') => {
+  const openForm = (formType: FormLink) => {
     setOpenFormType(formType)
     setCTab('formularios')
   }
@@ -68,6 +69,11 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   const openMetric = (action: 'weight' | 'perim' | 'photo') => {
     setOpenMetricAction(action)
     setCTab('metricas')
+  }
+
+  const openWhatsApp = (message: string) => {
+    const link = whatsappLink(trainer?.phone, message)
+    if (link) window.open(link, '_blank')
   }
 
   const tabColor = (k: ClientTab) => (cTab === k ? colors.accent : mut(0.45))
@@ -145,10 +151,10 @@ export default function ClientApp({ profile, onSignOut }: Props) {
         <div className="om-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 26px' }}>
           <InstallPrompt />
           <NotifPrompt clientId={profile.id} />
-          {cTab === 'perfil' && <Perfil profile={profile} />}
+          {cTab === 'perfil' && <Perfil profile={profile} onOpenForm={openForm} onOpenMetric={openMetric} onOpenWhatsApp={openWhatsApp} onAdherenceChange={refreshProfile} />}
           {cTab === 'metricas' && <Metricas profile={profile} initialAction={openMetricAction} onConsumed={() => setOpenMetricAction(null)} />}
           {cTab === 'analisis' && <Analisis clientId={profile.id} />}
-          {cTab === 'calendario' && <Agenda clientId={profile.id} onOpenForm={openForm} onOpenMetric={openMetric} onAdherenceChange={refreshProfile} />}
+          {cTab === 'calendario' && <Agenda clientId={profile.id} onOpenForm={openForm} onOpenMetric={openMetric} onOpenWhatsApp={openWhatsApp} onAdherenceChange={refreshProfile} />}
           {cTab === 'formularios' && (
             <Formularios profile={profile} initialFormType={openFormType} onConsumed={() => setOpenFormType(null)} />
           )}

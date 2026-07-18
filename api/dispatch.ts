@@ -174,34 +174,46 @@ export default async function handler(req: Req, res: Res) {
     }
   }
 
-  // 3) Recordatorios de eventos del calendario que son HOY (una sola vez).
-  //    Con hora: se avisa a su hora. Sin hora: se avisa a partir de las 08:00.
+  // 3) Recordatorio CON ANTELACIÓN (el día antes) de tareas importantes:
+  //    formularios, registros de métricas y envíos al coach. NO avisa de entrenos.
   const TYPE_LABEL: Record<string, string> = {
-    entreno: 'Entrenamiento',
-    cardio: 'Objetivo de cardio',
-    reporte: 'Rellenar tu reporte',
-    cambio: 'Cambio de planificación',
+    reporte: 'rellenar tu reporte',
+    cambio: 'rellenar el cambio de planificación',
+    encuesta: 'rellenar la encuesta de satisfacción',
+    nutricion: 'rellenar tu registro nutricional',
+    peso: 'registrar tu peso',
+    perimetros: 'registrar tus perímetros',
+    fotos: 'subir tus fotos de progreso',
+    video: 'enviar tus vídeos al coach',
+    comida: 'enviar la foto de tu comida',
   }
+  const REMIND_TYPES = Object.keys(TYPE_LABEL)
+  // Mañana en horario de Madrid.
+  const [ty, tm, td] = today.split('-').map(Number)
+  const tmr = new Date(Date.UTC(ty, tm - 1, td + 1))
+  const tomorrow = `${tmr.getUTCFullYear()}-${String(tmr.getUTCMonth() + 1).padStart(2, '0')}-${String(tmr.getUTCDate()).padStart(2, '0')}`
   let reminders = 0
-  const { data: todayEvents } = await supabase
-    .from('events')
-    .select('id, client_id, type, title, time, completed, reminded_at')
-    .eq('event_date', today)
-    .is('reminded_at', null)
-    .eq('completed', false)
-  for (const ev of todayEvents ?? []) {
-    try {
-      const at = ev.time || '08:00'
-      if (hhmm < at) continue
-      const what = ev.title || TYPE_LABEL[ev.type] || 'Tienes una tarea'
-      const body = `Recordatorio de hoy: ${what}. ¡A por ello, {nombre}!`
-      const ok = await deliver(ev.client_id, body)
-      if (ok) {
-        await supabase.from('events').update({ reminded_at: new Date().toISOString() }).eq('id', ev.id)
-        reminders++
+  // Se envía el día antes, a partir de las 10:00 (para no molestar de madrugada).
+  if (hhmm >= '10:00') {
+    const { data: tomEvents } = await supabase
+      .from('events')
+      .select('id, client_id, type, title, completed, reminded_at')
+      .eq('event_date', tomorrow)
+      .is('reminded_at', null)
+      .eq('completed', false)
+      .in('type', REMIND_TYPES)
+    for (const ev of tomEvents ?? []) {
+      try {
+        const what = ev.title || TYPE_LABEL[ev.type] || 'una tarea'
+        const body = `📋 Recordatorio: mañana toca ${what}. ¡No lo olvides, {nombre}!`
+        const ok = await deliver(ev.client_id, body)
+        if (ok) {
+          await supabase.from('events').update({ reminded_at: new Date().toISOString() }).eq('id', ev.id)
+          reminders++
+        }
+      } catch (e) {
+        errors.push(`event ${ev.id}: ${e instanceof Error ? e.message : e}`)
       }
-    } catch (e) {
-      errors.push(`event ${ev.id}: ${e instanceof Error ? e.message : e}`)
     }
   }
 

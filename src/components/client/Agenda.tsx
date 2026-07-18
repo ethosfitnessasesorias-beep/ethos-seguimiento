@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType, type MetricAction } from '../../lib/events'
+import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType, type FormLink, type MetricAction } from '../../lib/events'
 import Modal from '../Modal'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -12,12 +12,13 @@ function iso(y: number, m: number, d: number): string {
 
 interface Props {
   clientId: string
-  onOpenForm: (formType: 'reporte' | 'cambio') => void
+  onOpenForm: (formType: FormLink) => void
   onOpenMetric: (action: MetricAction) => void
+  onOpenWhatsApp: (message: string) => void
   onAdherenceChange?: () => void
 }
 
-export default function Agenda({ clientId, onOpenForm, onOpenMetric, onAdherenceChange }: Props) {
+export default function Agenda({ clientId, onOpenForm, onOpenMetric, onOpenWhatsApp, onAdherenceChange }: Props) {
   const now = useMemo(() => new Date(), [])
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -225,6 +226,14 @@ export default function Agenda({ clientId, onOpenForm, onOpenMetric, onAdherence
                       style={{ marginTop: 8, background: cfg.color, color: '#0a0a0a', border: 'none', borderRadius: 8, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                     >
                       Registrar ahora ›
+                    </button>
+                  )}
+                  {cfg.wa && (
+                    <button
+                      onClick={() => onOpenWhatsApp(cfg.wa!)}
+                      style={{ marginTop: 8, background: '#25D366', color: '#04310f', border: 'none', borderRadius: 8, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      💬 Enviar por WhatsApp ›
                     </button>
                   )}
                 </div>

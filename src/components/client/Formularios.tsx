@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
+import type { FormLink } from '../../lib/events'
 import {
   customToTemplate,
   FORM_TEMPLATES,
@@ -27,7 +28,7 @@ function todayISO(): string {
 
 interface FormulariosProps {
   profile: Profile
-  initialFormType?: 'reporte' | 'cambio' | null
+  initialFormType?: FormLink | null
   onConsumed?: () => void
 }
 
