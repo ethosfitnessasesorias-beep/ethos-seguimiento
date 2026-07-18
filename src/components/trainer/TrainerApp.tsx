@@ -11,7 +11,7 @@ import FormulariosTrainer from './FormulariosTrainer'
 import Equipo from './Equipo'
 
 export type TrainerView = 'resumen' | 'clientes' | 'cliente' | 'biblioteca' | 'formularios' | 'equipo'
-export type TrainerTab = 'evolucion' | 'fotos' | 'formularios' | 'agenda' | 'documentos'
+export type TrainerTab = 'evolucion' | 'fotos' | 'formularios' | 'agenda' | 'documentos' | 'checklist'
 
 interface Props {
   profile: Profile

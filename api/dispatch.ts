@@ -243,5 +243,56 @@ export default async function handler(req: Req, res: Res) {
     }
   }
 
-  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, reminders, agenda, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
+  // 5) Cumpleaños y aniversarios (cada 3 meses). Se envían una vez, por la mañana.
+  let greetings = 0
+  const monthsBetween = (a: string, b: string): number => {
+    const [ay, am, ad] = a.split('-').map(Number)
+    const [by, bm, bd] = b.split('-').map(Number)
+    let m = (by - ay) * 12 + (bm - am)
+    if (bd < ad) m -= 1
+    return Math.max(0, m)
+  }
+  const greet = async (clientId: string, body: string, patch: Record<string, unknown>) => {
+    const ok = await deliver(clientId, body)
+    if (ok) {
+      // También aparece en la campana de notificaciones del cliente.
+      await supabase.from('messages').insert({ client_id: clientId, body, send_date: today, notified_at: new Date().toISOString() })
+      await supabase.from('profiles').update(patch).eq('id', clientId)
+      greetings++
+    }
+  }
+  if (hhmm >= '10:00') {
+    const curYear = Number(today.slice(0, 4))
+    const todayMD = today.slice(5)
+    const dim = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate()
+    const todayDay = Number(today.slice(8, 10))
+    const { data: clients } = await supabase
+      .from('profiles')
+      .select('id, birth_date, start_date, last_birthday, last_anniversary, status')
+      .eq('role', 'client')
+    for (const c of clients ?? []) {
+      if ((c.status ?? 'active') !== 'active') continue
+      try {
+        // Cumpleaños
+        if (c.birth_date && c.birth_date.slice(5) === todayMD && c.last_birthday !== curYear) {
+          const months = c.start_date ? monthsBetween(c.start_date, today) : 0
+          const extra = months >= 1 ? ` Ya llevamos ${months} ${months === 1 ? 'mes' : 'meses'} trabajando juntos.` : ''
+          await greet(c.id, `🎂 ¡Feliz cumpleaños, {nombre}!${extra} Gracias por confiar en ETHOS. ¡Que tengas un gran día! 🎉`, { last_birthday: curYear })
+        }
+        // Aniversario cada 3 meses
+        if (c.start_date) {
+          const months = monthsBetween(c.start_date, today)
+          const startDay = Number(c.start_date.slice(8, 10))
+          const dayMatches = todayDay === Math.min(startDay, dim)
+          if (months > 0 && months % 3 === 0 && dayMatches && c.last_anniversary !== today) {
+            await greet(c.id, `🎉 {nombre}, ¡ya llevamos ${months} meses juntos! Estoy muy contento con tu compromiso y tu trabajo. ¡A por mucho más! 💪`, { last_anniversary: today })
+          }
+        }
+      } catch (e) {
+        errors.push(`greet ${c.id}: ${e instanceof Error ? e.message : e}`)
+      }
+    }
+  }
+
+  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, reminders, agenda, greetings, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
 }

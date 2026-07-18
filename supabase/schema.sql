@@ -566,6 +566,25 @@ create policy "trainer manages claims" on public.gift_claims
 alter table public.perimeter_logs add column if not exists brazo_izq numeric;
 alter table public.perimeter_logs add column if not exists pierna_izq numeric;
 
+-- ============================================================
+--  v23 · Cumpleaños/aniversario automáticos + checklists
+-- ============================================================
+alter table public.profiles add column if not exists birth_date date;
+alter table public.profiles add column if not exists last_birthday int;      -- año del último feliz cumpleaños enviado
+alter table public.profiles add column if not exists last_anniversary text;   -- último hito de aniversario enviado (ISO)
+
+create table if not exists public.client_checklists (
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  kind text not null,                         -- 'nuevo' | 'plani'
+  done jsonb not null default '[]'::jsonb,     -- claves de los pasos marcados
+  updated_at timestamptz not null default now(),
+  primary key (client_id, kind)
+);
+alter table public.client_checklists enable row level security;
+drop policy if exists "trainer manages checklists" on public.client_checklists;
+create policy "trainer manages checklists" on public.client_checklists
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
 -- ID del entrenador del usuario actual (para que el cliente lea sus formularios).
 create or replace function public.my_trainer_id() returns uuid
 language sql stable security definer set search_path = public as $$

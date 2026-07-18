@@ -22,6 +22,7 @@ import { changeColor, fullDate, METRIC_OPTIONS, perimeterRows, perimeterSeries, 
 import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
+import { downloadFormPdf } from '../../lib/formPdf'
 import { getClientNote, saveClientNote } from '../../lib/notes'
 import { giftTimeline, listClaims, removeMilestoneClaim, setMilestoneDelivered, type GiftClaim } from '../../lib/gifts'
 import { generateClientReport } from '../../lib/report'
@@ -31,6 +32,7 @@ import Composicion from '../Composicion'
 import ProgressPhotos, { type ComparePair } from '../ProgressPhotos'
 import ClienteAgenda from './ClienteAgenda'
 import ClienteDocumentos from './ClienteDocumentos'
+import Checklist from './Checklist'
 import type { TrainerTab } from './TrainerApp'
 
 interface Props {
@@ -166,6 +168,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
         {subTab('formularios', 'Formularios')}
         {subTab('agenda', 'Agenda')}
         {subTab('documentos', 'Documentos')}
+        {subTab('checklist', 'Checklist')}
       </div>
 
       {loading ? (
@@ -181,9 +184,11 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
           <ProgressPhotos clientId={clientId} columns={5} canUpload selectable allowSendToClient onCompareChange={setComparePair} />
         </div>
       ) : tTab === 'formularios' ? (
-        <TrainerForms clientId={clientId} />
+        <TrainerForms clientId={clientId} clientName={profile?.full_name ?? null} />
       ) : tTab === 'agenda' ? (
         <ClienteAgenda clientId={clientId} />
+      ) : tTab === 'checklist' ? (
+        <Checklist clientId={clientId} clientPhone={profile?.phone ?? null} goTab={setTTab} />
       ) : (
         <ClienteDocumentos clientId={clientId} />
       )}
@@ -800,7 +805,7 @@ function Row({ label, value, valueColor, bold }: { label: string; value: string;
 }
 
 // ---------- Formularios (respuestas del cliente) ----------
-function TrainerForms({ clientId }: { clientId: string }) {
+function TrainerForms({ clientId, clientName }: { clientId: string; clientName: string | null }) {
   const [subs, setSubs] = useState<FormSubmission[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -832,14 +837,15 @@ function TrainerForms({ clientId }: { clientId: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {subs.map((f) => (
-        <FormAccordion key={f.id} f={f} onToggleReviewed={() => toggle(f)} />
+        <FormAccordion key={f.id} f={f} clientName={clientName} onToggleReviewed={() => toggle(f)} />
       ))}
     </div>
   )
 }
 
-function FormAccordion({ f, onToggleReviewed }: { f: FormSubmission; onToggleReviewed: () => void }) {
+function FormAccordion({ f, clientName, onToggleReviewed }: { f: FormSubmission; clientName: string | null; onToggleReviewed: () => void }) {
   const [open, setOpen] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState(false)
   return (
     <div style={{ ...card, padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -847,6 +853,20 @@ function FormAccordion({ f, onToggleReviewed }: { f: FormSubmission; onToggleRev
           <span style={{ color: mut(0.4), fontSize: 12, width: 14 }}>{open ? '▾' : '▸'}</span>
           <span style={{ fontSize: 15, fontWeight: 700, color: colors.text }}>{f.form_title}</span>
           <span style={{ fontSize: 11, color: mut(0.45) }}>{f.created_at.slice(0, 10)}</span>
+        </button>
+        <button
+          onClick={async () => {
+            setPdfBusy(true)
+            try {
+              await downloadFormPdf(f, clientName)
+            } finally {
+              setPdfBusy(false)
+            }
+          }}
+          title="Descargar en PDF (para adjuntar a Claude)"
+          style={{ fontSize: 10.5, fontWeight: 600, cursor: 'pointer', color: '#f5a99f', background: 'rgba(219,24,9,0.14)', border: 'none', padding: '4px 11px', borderRadius: 999, fontFamily: 'inherit', flex: 'none' }}
+        >
+          {pdfBusy ? '…' : '↓ PDF'}
         </button>
         <button
           onClick={onToggleReviewed}
@@ -1033,6 +1053,7 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
     phone: profile.phone ?? '',
     city: profile.city ?? '',
     start_date: profile.start_date ?? '',
+    birth_date: profile.birth_date ?? '',
     injuries: profile.injuries ?? '',
     pathologies: profile.pathologies ?? '',
     main_goal: profile.main_goal ?? '',
@@ -1062,6 +1083,7 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
         phone: txt(f.phone),
         city: txt(f.city),
         start_date: txt(f.start_date),
+        birth_date: txt(f.birth_date),
         injuries: txt(f.injuries),
         pathologies: txt(f.pathologies),
         main_goal: txt(f.main_goal),
@@ -1099,11 +1121,17 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
             ))}
           </div>
         </div>
-        <label style={{ display: 'block' }}>
-          <span style={labelStyle}>Fecha de inicio (cliente desde)</span>
-          <input type="date" value={f.start_date.slice(0, 10)} onChange={(e) => set('start_date')(e.target.value)} style={fieldStyle} />
-          <span style={{ fontSize: 10.5, color: mut(0.4), display: 'block', marginTop: 4 }}>Desde esta fecha se calculan los regalos de fidelidad (6 y 12 meses).</span>
-        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ display: 'block' }}>
+            <span style={labelStyle}>Fecha de inicio (cliente desde)</span>
+            <input type="date" value={f.start_date.slice(0, 10)} onChange={(e) => set('start_date')(e.target.value)} style={fieldStyle} />
+          </label>
+          <label style={{ display: 'block' }}>
+            <span style={labelStyle}>Fecha de nacimiento</span>
+            <input type="date" value={f.birth_date.slice(0, 10)} onChange={(e) => set('birth_date')(e.target.value)} style={fieldStyle} />
+          </label>
+        </div>
+        <span style={{ fontSize: 10.5, color: mut(0.4), display: 'block', marginTop: 4 }}>La fecha de inicio calcula los regalos y el aniversario; la de nacimiento, el mensaje de cumpleaños.</span>
         <Area label="Lesiones" value={f.injuries} onChange={set('injuries')} />
         <Area label="Patologías y alergias" value={f.pathologies} onChange={set('pathologies')} />
         <Area label="Objetivo principal" value={f.main_goal} onChange={set('main_goal')} />

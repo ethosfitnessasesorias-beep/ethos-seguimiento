@@ -29,6 +29,7 @@ export interface Profile {
   status: string | null // 'active' | 'inactive'
   deactivated_at: string | null
   start_date: string | null // fecha real de alta (para los regalos)
+  birth_date: string | null
   created_at: string
 }
 
