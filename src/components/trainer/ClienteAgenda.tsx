@@ -320,7 +320,14 @@ interface ProgramInitial {
   name: string
   pattern: WeekPattern
   startMonday: string
-  weeks: string
+  endDate: string
+}
+
+// Nº de semanas entre dos lunes (inclusive).
+function weeksBetween(startMonday: string, endMonday: string): number {
+  const a = new Date(startMonday).getTime()
+  const b = new Date(endMonday).getTime()
+  return Math.round((b - a) / (7 * 86400000)) + 1
 }
 
 // Reconstruye el patrón semanal a partir de los eventos de un programa.
@@ -334,7 +341,7 @@ function programToInitial(p: ProgramGroup): ProgramInitial {
     seen.add(key)
     ;(pattern[wd] ||= []).push({ type: e.type, title: e.title ?? undefined, time: e.time ?? undefined })
   }
-  return { id: p.id, name: p.name, pattern, startMonday: mondayOf(p.from), weeks: String(p.weeks) }
+  return { id: p.id, name: p.name, pattern, startMonday: mondayOf(p.from), endDate: p.to }
 }
 
 function groupEvents(events: CalEvent[]): { programs: ProgramGroup[] } {
@@ -411,19 +418,32 @@ function ProgramCard({ p, onDelete, onEdit }: { p: ProgramGroup; onDelete?: () =
   )
 }
 
-// ---------- Modal: añadir evento suelto ----------
+// ---------- Modal: añadir evento (puntual o repetido) ----------
 function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; date: string; onClose: () => void; onDone: () => void }) {
   const [type, setType] = useState<EventType>('entreno')
   const [title, setTitle] = useState('')
   const [time, setTime] = useState('')
+  const [repeat, setRepeat] = useState(false)
+  const [endDate, setEndDate] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const save = async () => {
+    if (repeat && endDate && endDate < date) return setErr('La fecha de fin debe ser posterior a la del evento.')
     setBusy(true)
     setErr(null)
     try {
-      await addEvent(clientId, { event_date: date, type, title: title.trim() || undefined, time: time.trim() || undefined })
+      if (!repeat) {
+        await addEvent(clientId, { event_date: date, type, title: title.trim() || undefined, time: time.trim() || undefined })
+      } else {
+        // Repetición semanal: se crea como un mini-programa (agrupado, editable/borrable).
+        const wd = weekdayOfISO(date)
+        const start = mondayOf(date)
+        const FOREVER_WEEKS = 52
+        const weeks = endDate ? weeksBetween(start, mondayOf(endDate)) : FOREVER_WEEKS
+        const pattern: WeekPattern = { [wd]: [{ type, title: title.trim() || undefined, time: time.trim() || undefined }] }
+        await generateProgram(clientId, pattern, start, Math.max(1, weeks), title.trim() || EVENT_TYPES[type].label)
+      }
       onDone()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo crear.')
@@ -450,13 +470,30 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
         <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Nombre (opcional)</span>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Entrenamiento de fuerza" style={fieldStyle} />
       </label>
-      <label style={{ display: 'block' }}>
+      <label style={{ display: 'block', marginBottom: 12 }}>
         <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Hora (opcional)</span>
         <input value={time} onChange={(e) => setTime(e.target.value)} placeholder="18:30" style={fieldStyle} />
       </label>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', marginBottom: repeat ? 10 : 0 }}>
+        <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} style={{ width: 17, height: 17, accentColor: colors.accent }} />
+        <span style={{ fontSize: 13, color: mut(0.8) }}>Repetir cada semana ({DAYS[weekdayOfISO(date)]})</span>
+      </label>
+      {repeat && (
+        <>
+          <label style={{ display: 'block' }}>
+            <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Hasta (opcional)</span>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={date} style={fieldStyle} />
+          </label>
+          <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 6 }}>
+            {endDate ? `Se repetirá cada ${DAYS[weekdayOfISO(date)].toLowerCase()} hasta esa fecha.` : 'Sin fecha de fin: se genera 1 año de repeticiones.'}
+          </div>
+        </>
+      )}
+
       {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
       <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-        {busy ? 'Creando…' : 'Añadir evento'}
+        {busy ? 'Creando…' : repeat ? 'Crear eventos' : 'Añadir evento'}
       </button>
     </Modal>
   )
@@ -467,7 +504,7 @@ function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string
   const [name, setName] = useState(initial?.name ?? '')
   const [pattern, setPattern] = useState<WeekPattern>(initial?.pattern ?? {})
   const [startMonday, setStartMonday] = useState(initial?.startMonday ?? mondayOf(todayStr()))
-  const [weeks, setWeeks] = useState(initial?.weeks ?? '4')
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [templates, setTemplates] = useState<ProgramTemplate[]>([])
@@ -490,17 +527,20 @@ function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string
   }
   const has = (day: number, type: EventType) => (pattern[day] || []).some((x) => x.type === type)
 
+  // Sin fecha de fin: se genera un horizonte largo (1 año).
+  const FOREVER_WEEKS = 52
+  const weeks = endDate ? weeksBetween(startMonday, mondayOf(endDate)) : FOREVER_WEEKS
+
   const generate = async () => {
-    const w = parseInt(weeks, 10)
     if (!name.trim()) return setErr('Ponle un nombre al programa.')
-    if (!w || w < 1) return setErr('Indica cuántas semanas repetir.')
+    if (endDate && endDate < startMonday) return setErr('La fecha de fin debe ser posterior a la de inicio.')
     if (Object.values(pattern).every((l) => !l || l.length === 0)) return setErr('Marca al menos un evento en la semana.')
     setBusy(true)
     setErr(null)
     try {
       // En modo edición, se sustituye el programa: se borran sus eventos y se regeneran.
       if (initial) await deleteProgram(initial.id)
-      const n = await generateProgram(clientId, pattern, startMonday, w, name.trim())
+      const n = await generateProgram(clientId, pattern, startMonday, Math.max(1, weeks), name.trim())
       onDone(n)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo generar.')
@@ -589,13 +629,16 @@ function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
           <label>
-            <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Empezar el lunes</span>
+            <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Desde (se ajusta al lunes)</span>
             <input type="date" value={startMonday} onChange={(e) => setStartMonday(mondayOf(e.target.value))} style={fieldStyle} />
           </label>
           <label>
-            <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Repetir (semanas)</span>
-            <input inputMode="numeric" value={weeks} onChange={(e) => setWeeks(e.target.value)} style={fieldStyle} />
+            <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Hasta (opcional)</span>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startMonday} style={fieldStyle} />
           </label>
+        </div>
+        <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 6 }}>
+          {endDate ? `Se repetirá ${Math.max(1, weeks)} semana(s).` : 'Sin fecha de fin: se genera 1 año de repeticiones.'}
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>

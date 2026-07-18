@@ -117,15 +117,17 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
     })
   }
 
-  const onFile = async (file?: File | null) => {
-    if (!file) return
+  const onFiles = async (files?: FileList | null) => {
+    if (!files || files.length === 0) return
     setUploading(true)
     setErr(null)
     try {
-      await addPhoto(clientId, file, targetFolder || null, targetDate || undefined)
+      for (const file of Array.from(files)) {
+        await addPhoto(clientId, file, targetFolder || null, targetDate || undefined)
+      }
       await reload()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'No se pudo subir la foto.')
+      setErr(e instanceof Error ? e.message : 'No se pudieron subir las fotos.')
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
@@ -193,7 +195,7 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
           <button onClick={newFolder} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
             + Carpeta
           </button>
-          <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => onFile(e.target.files?.[0])} />
+          <input ref={inputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => onFiles(e.target.files)} />
         </div>
       )}
 
