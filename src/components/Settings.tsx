@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth'
 import { updateProfile, type Profile } from '../lib/db'
 import { disablePush, enablePush, notificationPermission } from '../lib/push'
 
-const APP_VERSION = '3.2'
+const APP_VERSION = '3.3'
 
 interface Props {
   profile: Profile

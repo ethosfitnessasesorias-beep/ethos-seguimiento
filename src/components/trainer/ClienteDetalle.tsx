@@ -467,7 +467,7 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
           onClick={() => setShowAll((s) => !s)}
           style={{ marginTop: 12, background: 'none', border: 'none', color: colors.accent, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}
         >
-          {showAll ? '▾ Ocultar todos los registros' : '▸ Ver todos los registros'}
+          {showAll ? '▾ Ocultar registro de datos métricos' : '▸ Registro de datos métricos'}
         </button>
         {showAll && <AllRecords weights={weights} perims={perims} profile={profile} onChanged={onChanged} />}
 
@@ -614,120 +614,103 @@ function TrainerEditWeightModal({ clientId, log, onClose, onSaved }: { clientId:
 
 // Tabla con TODOS los registros (peso, perímetros y composición) por fecha.
 function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; profile: Profile | null; onChanged: () => void }) {
-  const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
-  const th: React.CSSProperties = { fontSize: 10.5, color: mut(0.4), fontWeight: 600, textAlign: 'right', padding: '6px 8px', whiteSpace: 'nowrap' }
-  const td: React.CSSProperties = { fontSize: 12, textAlign: 'right', padding: '7px 8px', whiteSpace: 'nowrap' }
-  const wDesc = [...weights].reverse()
-  const pDesc = [...perims].reverse()
-
   const [editW, setEditW] = useState<WeightLog | null>(null)
+  const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
 
-  const removeWeight = async (id: string) => {
-    if (!profile || !confirm('¿Eliminar este registro de peso del cliente?')) return
-    await deleteWeight(id, profile.id)
+  // Índices por fecha.
+  const weightByDate = new Map<string, WeightLog>()
+  for (const w of weights) weightByDate.set(w.log_date, w)
+  const perimByDate = new Map<string, PerimeterLog>()
+  for (const p of perims) perimByDate.set(p.log_date, p)
+  const compByDate = new Map<string, (typeof comp)[number]>()
+  for (const c of comp) compByDate.set(c.date, c)
+
+  // Todas las fechas con datos, de la más reciente a la más antigua.
+  const dates = Array.from(new Set([...weights.map((w) => w.log_date), ...perims.map((p) => p.log_date)])).sort((a, b) => (a < b ? 1 : -1))
+
+  if (dates.length === 0) return <div style={{ fontSize: 12.5, color: mut(0.4), marginTop: 12 }}>Sin registros todavía.</div>
+
+  interface RowDef { key: string; label: string; get: (d: string) => number | null; edit?: boolean }
+  const rows: RowDef[] = [
+    { key: 'weight', label: 'Peso corporal (kg)', get: (d) => (weightByDate.get(d) ? Number(weightByDate.get(d)!.weight) : null), edit: true },
+    { key: 'fat', label: 'Grasa corporal (%)', get: (d) => compByDate.get(d)?.fatPct ?? null },
+    { key: 'muscle', label: 'Músculo (kg)', get: (d) => compByDate.get(d)?.muscleKg ?? null },
+    ...PERIMETER_FIELDS.map((f) => ({ key: f.key, label: `${f.label} (cm)`, get: (d: string) => (perimByDate.get(d)?.[f.key] as number | null) ?? null })),
+  ]
+
+  // Color por cambio (verde sube / rojo baja) respecto a la medición anterior de esa fila.
+  const colorFor = (row: RowDef, d: string): string | undefined => {
+    const cur = row.get(d)
+    if (cur == null) return undefined
+    const older = dates.filter((x) => x < d).find((x) => row.get(x) != null)
+    const prev = older ? row.get(older) : null
+    if (prev == null) return undefined
+    return changeColor(+(cur - prev).toFixed(2))
+  }
+
+  const removeDate = async (d: string) => {
+    if (!profile || !confirm(`¿Eliminar todos los datos del ${fullDate(d)}?`)) return
+    const w = weightByDate.get(d)
+    const p = perimByDate.get(d)
+    if (w) await deleteWeight(w.id, profile.id)
+    if (p) await deletePerimeter(p.id)
     onChanged()
   }
-  const removePerim = async (id: string) => {
-    if (!confirm('¿Eliminar este registro de perímetros del cliente?')) return
-    await deletePerimeter(id)
-    onChanged()
-  }
-  const delBtn: React.CSSProperties = { background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 13, padding: '2px 4px', lineHeight: 1, flex: 'none' }
+
+  const labelCell: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: mut(0.75), textAlign: 'left', padding: '9px 12px', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: colors.surface1, borderBottom: '1px solid rgba(255,255,255,0.05)' }
+  const cellStyle: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, textAlign: 'center', padding: '9px 14px', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.05)' }
+  const headCell: React.CSSProperties = { padding: '8px 14px', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.09)' }
 
   return (
-    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Peso corporal <span style={{ fontWeight: 400, color: mut(0.35) }}>· desliza →</span></div>
-        {wDesc.length === 0 ? (
-          <div style={{ fontSize: 12, color: mut(0.4) }}>Sin registros.</div>
-        ) : (
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }} className="om-scroll">
-            {wDesc.map((w) => (
-              <div key={w.id} style={{ flex: 'none', width: 118, background: colors.surface2, borderRadius: 10, padding: '10px 11px' }}>
-                <div style={{ fontSize: 10.5, color: mut(0.5) }}>{fullDate(w.log_date)}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 3 }}>{Number(w.weight)} <span style={{ fontSize: 10, color: mut(0.4) }}>kg</span></div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <button onClick={() => setEditW(w)} style={{ flex: 1, background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 0', color: mut(0.7), cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600 }}>✎ Editar</button>
-                  <button onClick={() => removeWeight(w.id)} title="Eliminar" style={{ background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '5px 9px', color: mut(0.5), cursor: 'pointer', fontFamily: 'inherit', fontSize: 11 }}>✕</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+    <div style={{ marginTop: 12 }}>
+      <div style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12 }} className="om-scroll">
+        <table style={{ borderCollapse: 'collapse', minWidth: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ ...labelCell, ...headCell, zIndex: 2 }}>Métrica</th>
+              {dates.map((d) => (
+                <th key={d} style={{ ...headCell, textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: colors.accent }}>{fullDate(d)}</div>
+                  {profile && (
+                    <button onClick={() => removeDate(d)} title="Eliminar esta fecha" style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 12, marginTop: 2, fontFamily: 'inherit' }}>🗑</button>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              if (dates.every((d) => row.get(d) == null)) return null
+              return (
+                <tr key={row.key}>
+                  <td style={labelCell}>{row.label}</td>
+                  {dates.map((d) => {
+                    const v = row.get(d)
+                    const clickable = row.edit && v != null && weightByDate.get(d)
+                    return (
+                      <td
+                        key={d}
+                        onClick={clickable ? () => setEditW(weightByDate.get(d)!) : undefined}
+                        title={clickable ? 'Editar' : undefined}
+                        style={{ ...cellStyle, color: v != null ? (colorFor(row, d) ?? colors.text) : mut(0.25), cursor: clickable ? 'pointer' : 'default' }}
+                      >
+                        {v != null ? v : '·'}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 8, lineHeight: 1.5 }}>
+        Desliza en horizontal para ver más fechas. Toca un valor de <b>peso</b> para editarlo. 🗑 elimina todos los datos de esa fecha. Verde = sube · rojo = baja.
       </div>
 
       {editW && profile && (
-        <TrainerEditWeightModal
-          clientId={profile.id}
-          log={editW}
-          onClose={() => setEditW(null)}
-          onSaved={() => { setEditW(null); onChanged() }}
-        />
+        <TrainerEditWeightModal clientId={profile.id} log={editW} onClose={() => setEditW(null)} onSaved={() => { setEditW(null); onChanged() }} />
       )}
-      <div style={{ overflowX: 'auto' }} className="om-scroll">
-        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Perímetros (cm)</div>
-        {pDesc.length === 0 ? (
-          <div style={{ fontSize: 12, color: mut(0.4) }}>Sin registros.</div>
-        ) : (
-          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-            <thead>
-              <tr>
-                <th style={{ ...th, textAlign: 'left' }}>Fecha</th>
-                {PERIMETER_FIELDS.map((f) => (
-                  <th key={f.key} style={th}>{f.label}</th>
-                ))}
-                <th style={th}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pDesc.map((p) => (
-                <tr key={p.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{fullDate(p.log_date)}</td>
-                  {PERIMETER_FIELDS.map((f) => (
-                    <td key={f.key} style={td}>{(p[f.key] as number | null) ?? '—'}</td>
-                  ))}
-                  <td style={td}><button onClick={() => removePerim(p.id)} title="Eliminar" style={delBtn}>✕</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-      <div style={{ overflowX: 'auto' }} className="om-scroll">
-        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Composición corporal (estimada)</div>
-        {comp.length === 0 ? (
-          <div style={{ fontSize: 12, color: mut(0.4) }}>
-            Sin datos suficientes (requiere sexo y altura en la ficha, y registros con cintura y cuello).
-          </div>
-        ) : (
-          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-            <thead>
-              <tr>
-                <th style={{ ...th, textAlign: 'left' }}>Fecha</th>
-                <th style={th}>Grasa %</th>
-                <th style={th}>Grasa kg</th>
-                <th style={th}>Músculo %</th>
-                <th style={th}>Músculo kg</th>
-                <th style={th}>Óseo %</th>
-                <th style={th}>Óseo kg</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...comp].reverse().map((c) => (
-                <tr key={c.date} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                  <td style={{ ...td, textAlign: 'left', color: mut(0.6) }}>{fullDate(c.date)}</td>
-                  <td style={td}>{c.fatPct}</td>
-                  <td style={td}>{c.fatKg}</td>
-                  <td style={td}>{c.musclePct}</td>
-                  <td style={td}>{c.muscleKg}</td>
-                  <td style={td}>{c.bonePct}</td>
-                  <td style={td}>{c.boneKg}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   )
 }
