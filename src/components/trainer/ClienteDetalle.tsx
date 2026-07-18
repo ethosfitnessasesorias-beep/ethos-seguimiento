@@ -6,6 +6,7 @@ import {
   deleteClientPermanently,
   deletePerimeter,
   deleteWeight,
+  updatePerimeter,
   updateWeight,
   getProfile,
   listPerimeters,
@@ -464,12 +465,23 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
         </div>
 
         <button
-          onClick={() => setShowAll((s) => !s)}
-          style={{ marginTop: 12, background: 'none', border: 'none', color: colors.accent, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+          onClick={() => setShowAll(true)}
+          style={{ marginTop: 12, width: '100%', background: colors.surface2, border: '1px solid rgba(255,255,255,0.12)', color: colors.text, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 10, padding: '11px 0' }}
         >
-          {showAll ? '▾ Ocultar registro de datos métricos' : '▸ Registro de datos métricos'}
+          📋 Registro de datos métricos
         </button>
-        {showAll && <AllRecords weights={weights} perims={perims} profile={profile} onChanged={onChanged} />}
+
+        {showAll && (
+          <div onClick={() => setShowAll(false)} style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '36px 16px', overflowY: 'auto' }} className="om-scroll">
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 980, background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, padding: 22 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ fontSize: 17, fontWeight: 800 }}>Registro de datos métricos</div>
+                <button onClick={() => setShowAll(false)} style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, width: 34, height: 34, color: mut(0.7), cursor: 'pointer', fontSize: 16 }}>✕</button>
+              </div>
+              <AllRecords weights={weights} perims={perims} profile={profile} onChanged={onChanged} />
+            </div>
+          </div>
+        )}
 
         {addModal === 'weight' && profile && (
           <TrainerWeightModal clientId={profile.id} onClose={() => setAddModal(null)} onSaved={() => { setAddModal(null); onChanged() }} />
@@ -615,6 +627,7 @@ function TrainerEditWeightModal({ clientId, log, onClose, onSaved }: { clientId:
 // Tabla con TODOS los registros (peso, perímetros y composición) por fecha.
 function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; profile: Profile | null; onChanged: () => void }) {
   const [editW, setEditW] = useState<WeightLog | null>(null)
+  const [editP, setEditP] = useState<PerimeterLog | null>(null)
   const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
 
   // Índices por fecha.
@@ -630,12 +643,12 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
 
   if (dates.length === 0) return <div style={{ fontSize: 12.5, color: mut(0.4), marginTop: 12 }}>Sin registros todavía.</div>
 
-  interface RowDef { key: string; label: string; get: (d: string) => number | null; edit?: boolean }
+  interface RowDef { key: string; label: string; get: (d: string) => number | null; edit?: boolean; perim?: boolean }
   const rows: RowDef[] = [
     { key: 'weight', label: 'Peso corporal (kg)', get: (d) => (weightByDate.get(d) ? Number(weightByDate.get(d)!.weight) : null), edit: true },
     { key: 'fat', label: 'Grasa corporal (%)', get: (d) => compByDate.get(d)?.fatPct ?? null },
     { key: 'muscle', label: 'Músculo (kg)', get: (d) => compByDate.get(d)?.muscleKg ?? null },
-    ...PERIMETER_FIELDS.map((f) => ({ key: f.key, label: `${f.label} (cm)`, get: (d: string) => (perimByDate.get(d)?.[f.key] as number | null) ?? null })),
+    ...PERIMETER_FIELDS.map((f) => ({ key: f.key, label: `${f.label} (cm)`, get: (d: string) => (perimByDate.get(d)?.[f.key] as number | null) ?? null, perim: true })),
   ]
 
   // Color por cambio (verde sube / rojo baja) respecto a la medición anterior de esa fila.
@@ -686,13 +699,15 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
                   <td style={labelCell}>{row.label}</td>
                   {dates.map((d) => {
                     const v = row.get(d)
-                    const clickable = row.edit && v != null && weightByDate.get(d)
+                    const wLog = weightByDate.get(d)
+                    const pLog = perimByDate.get(d)
+                    const onEdit = row.edit && wLog ? () => setEditW(wLog) : row.perim && pLog ? () => setEditP(pLog) : undefined
                     return (
                       <td
                         key={d}
-                        onClick={clickable ? () => setEditW(weightByDate.get(d)!) : undefined}
-                        title={clickable ? 'Editar' : undefined}
-                        style={{ ...cellStyle, color: v != null ? (colorFor(row, d) ?? colors.text) : mut(0.25), cursor: clickable ? 'pointer' : 'default' }}
+                        onClick={onEdit}
+                        title={onEdit ? 'Editar' : undefined}
+                        style={{ ...cellStyle, color: v != null ? (colorFor(row, d) ?? colors.text) : mut(0.25), cursor: onEdit ? 'pointer' : 'default' }}
                       >
                         {v != null ? v : '·'}
                       </td>
@@ -705,13 +720,73 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
         </table>
       </div>
       <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 8, lineHeight: 1.5 }}>
-        Desliza en horizontal para ver más fechas. Toca un valor de <b>peso</b> para editarlo. 🗑 elimina todos los datos de esa fecha. Verde = sube · rojo = baja.
+        Desliza en horizontal para ver más fechas. Toca un valor de <b>peso</b> o <b>perímetro</b> para editarlo. 🗑 elimina todos los datos de esa fecha. Verde = sube · rojo = baja.
       </div>
 
       {editW && profile && (
         <TrainerEditWeightModal clientId={profile.id} log={editW} onClose={() => setEditW(null)} onSaved={() => { setEditW(null); onChanged() }} />
       )}
+      {editP && (
+        <TrainerEditPerimModal log={editP} onClose={() => setEditP(null)} onSaved={() => { setEditP(null); onChanged() }} />
+      )}
     </div>
+  )
+}
+
+// Editar un registro de perímetros (todos los valores + fecha).
+function TrainerEditPerimModal({ log, onClose, onSaved }: { log: PerimeterLog; onClose: () => void; onSaved: () => void }) {
+  const [vals, setVals] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    for (const f of PERIMETER_FIELDS) {
+      const v = log[f.key] as number | null
+      init[f.key] = v != null ? String(v) : ''
+    }
+    return init
+  })
+  const [date, setDate] = useState(log.log_date.slice(0, 10))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const payload: Record<string, number | null> = {}
+    for (const f of PERIMETER_FIELDS) {
+      const raw = vals[f.key]?.trim()
+      if (!raw) payload[f.key] = null
+      else {
+        const n = parseFloat(raw.replace(',', '.'))
+        payload[f.key] = isFinite(n) ? n : null
+      }
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      await updatePerimeter(log.id, payload, date || undefined)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Editar perímetros" onClose={onClose}>
+      <label style={{ display: 'block', marginBottom: 10 }}>
+        <span style={labelStyle}>Fecha</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+      </label>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {PERIMETER_FIELDS.map((f) => (
+          <label key={f.key} style={{ display: 'block' }}>
+            <span style={labelStyle}>{f.label} (cm)</span>
+            <input value={vals[f.key] ?? ''} onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))} inputMode="decimal" style={fieldStyle} />
+          </label>
+        ))}
+      </div>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Guardando…' : 'Guardar cambios'}
+      </button>
+    </Modal>
   )
 }
 

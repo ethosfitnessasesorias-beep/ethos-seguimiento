@@ -81,12 +81,14 @@ export function perimeterSeries(logs: PerimeterLog[], field: string): SeriesPoin
 /** Métricas seleccionables para las gráficas (peso + perímetros). */
 export const METRIC_OPTIONS: { key: string; label: string; unit: string; color: string }[] = [
   { key: 'weight', label: 'Peso', unit: 'kg', color: '#db1809' },
+  { key: 'cuello', label: 'Cuello', unit: 'cm', color: '#2dd4bf' },
+  { key: 'pecho', label: 'Pecho', unit: 'cm', color: '#a78bfa' },
   { key: 'cintura', label: 'Cintura', unit: 'cm', color: '#f5a623' },
   { key: 'cadera', label: 'Cadera', unit: 'cm', color: '#2dd4bf' },
-  { key: 'pecho', label: 'Pecho', unit: 'cm', color: '#a78bfa' },
-  { key: 'brazo', label: 'Brazo', unit: 'cm', color: '#4ade80' },
-  { key: 'pierna', label: 'Pierna', unit: 'cm', color: '#f5a623' },
-  { key: 'cuello', label: 'Cuello', unit: 'cm', color: '#2dd4bf' },
+  { key: 'brazo', label: 'Brazo der.', unit: 'cm', color: '#4ade80' },
+  { key: 'brazo_izq', label: 'Brazo izq.', unit: 'cm', color: '#4ade80' },
+  { key: 'pierna', label: 'Pierna der.', unit: 'cm', color: '#f5a623' },
+  { key: 'pierna_izq', label: 'Pierna izq.', unit: 'cm', color: '#f5a623' },
 ]
 
 export interface PerimeterRow {

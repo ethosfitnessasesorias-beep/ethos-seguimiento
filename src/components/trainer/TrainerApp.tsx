@@ -7,9 +7,10 @@ import Resumen from './Resumen'
 import Clientes from './Clientes'
 import ClienteDetalle from './ClienteDetalle'
 import Biblioteca from './Biblioteca'
+import FormulariosTrainer from './FormulariosTrainer'
 import Equipo from './Equipo'
 
-export type TrainerView = 'resumen' | 'clientes' | 'cliente' | 'biblioteca' | 'equipo'
+export type TrainerView = 'resumen' | 'clientes' | 'cliente' | 'biblioteca' | 'formularios' | 'equipo'
 export type TrainerTab = 'evolucion' | 'fotos' | 'formularios' | 'agenda' | 'documentos'
 
 interface Props {
@@ -76,6 +77,9 @@ export default function TrainerApp({ profile, onSignOut }: Props) {
             <button onClick={() => setTView('biblioteca')} style={navBtn(tView === 'biblioteca')}>
               Biblioteca
             </button>
+            <button onClick={() => setTView('formularios')} style={navBtn(tView === 'formularios')}>
+              Formularios
+            </button>
             <button onClick={() => setTView('equipo')} style={navBtn(tView === 'equipo')}>
               Equipo
             </button>
@@ -102,6 +106,7 @@ export default function TrainerApp({ profile, onSignOut }: Props) {
       {tView === 'resumen' && <Resumen trainerName={profile.full_name} onOpenClient={openClient} />}
       {tView === 'clientes' && <Clientes onOpen={openClient} />}
       {tView === 'biblioteca' && <Biblioteca />}
+      {tView === 'formularios' && <FormulariosTrainer />}
       {tView === 'equipo' && <Equipo myId={profile.id} />}
       {tView === 'cliente' && selClientId && (
         <ClienteDetalle clientId={selClientId} tTab={tTab} setTTab={setTTab} goClientes={() => setTView('clientes')} />

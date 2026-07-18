@@ -71,6 +71,43 @@ export function templateByType(type: string): FormTemplate | undefined {
   return FORM_TEMPLATES.find((t) => t.type === type)
 }
 
+// ---- Formularios personalizados (creados por el entrenador) ----
+export interface CustomForm {
+  id: string
+  trainer_id: string
+  title: string
+  intro: string | null
+  color: string | null
+  questions: Question[]
+  created_at: string
+}
+
+export async function listCustomForms(): Promise<CustomForm[]> {
+  const { data, error } = await supabase.from('custom_forms').select('*').order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as CustomForm[]
+}
+
+export async function saveCustomForm(f: { id?: string; title: string; intro: string; color: string; questions: Question[] }): Promise<void> {
+  if (f.id) {
+    const { error } = await supabase.from('custom_forms').update({ title: f.title, intro: f.intro, color: f.color, questions: f.questions }).eq('id', f.id)
+    if (error) throw error
+  } else {
+    const { data: u } = await supabase.auth.getUser()
+    const { error } = await supabase.from('custom_forms').insert({ trainer_id: u.user?.id, title: f.title, intro: f.intro, color: f.color, questions: f.questions })
+    if (error) throw error
+  }
+}
+
+export async function deleteCustomForm(id: string): Promise<void> {
+  const { error } = await supabase.from('custom_forms').delete().eq('id', id)
+  if (error) throw error
+}
+
+export function customToTemplate(f: CustomForm): FormTemplate {
+  return { type: `custom:${f.id}`, title: f.title, color: f.color || '#db1809', intro: f.intro || '', questions: f.questions }
+}
+
 // ---- Envíos de formularios ----
 export interface Answer {
   q: string

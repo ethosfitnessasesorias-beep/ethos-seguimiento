@@ -43,6 +43,7 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
   const [err, setErr] = useState<string | null>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [targetFolder, setTargetFolder] = useState<string>('')
+  const [targetDate, setTargetDate] = useState<string>('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [showCompare, setShowCompare] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -114,7 +115,7 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
     setUploading(true)
     setErr(null)
     try {
-      await addPhoto(clientId, file, targetFolder || null)
+      await addPhoto(clientId, file, targetFolder || null, targetDate || undefined)
       await reload()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo subir la foto.')
@@ -178,6 +179,7 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
               <option key={f.id} value={f.id}>{f.name}</option>
             ))}
           </select>
+          <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} title="Fecha de la foto (por defecto hoy)" style={selStyle} />
           <button onClick={() => inputRef.current?.click()} disabled={uploading} style={{ background: colors.accent, color: '#fff', border: 'none', borderRadius: 10, padding: '9px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: uploading ? 0.6 : 1 }}>
             {uploading ? 'Subiendo…' : '+ Añadir foto'}
           </button>

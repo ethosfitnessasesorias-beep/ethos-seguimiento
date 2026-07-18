@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
 import {
+  customToTemplate,
   FORM_TEMPLATES,
+  listCustomForms,
   listSubmissions,
   submitForm,
   templateByType,
@@ -32,11 +34,14 @@ interface FormulariosProps {
 export default function Formularios({ profile, initialFormType, onConsumed }: FormulariosProps) {
   const [filling, setFilling] = useState<FormTemplate | null>(null)
   const [subs, setSubs] = useState<FormSubmission[]>([])
+  const [customTemplates, setCustomTemplates] = useState<FormTemplate[]>([])
   const [loading, setLoading] = useState(true)
 
   const reload = useCallback(async () => {
     try {
-      setSubs(await listSubmissions(profile.id))
+      const [s, cf] = await Promise.all([listSubmissions(profile.id), listCustomForms().catch(() => [])])
+      setSubs(s)
+      setCustomTemplates(cf.map(customToTemplate))
     } finally {
       setLoading(false)
     }
@@ -75,7 +80,7 @@ export default function Formularios({ profile, initialFormType, onConsumed }: Fo
     <div>
       <div style={{ fontSize: 12, color: mut(0.5), margin: '2px 4px 12px' }}>Rellena tus formularios de seguimiento.</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {FORM_TEMPLATES.map((t) => (
+        {[...FORM_TEMPLATES, ...customTemplates].map((t) => (
           <button
             key={t.type}
             onClick={() => setFilling(t)}

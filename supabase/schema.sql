@@ -562,6 +562,34 @@ drop policy if exists "trainer manages claims" on public.gift_claims;
 create policy "trainer manages claims" on public.gift_claims
   for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
 
+-- Perímetros bilaterales (brazo y pierna izquierda; los existentes pasan a "derecha").
+alter table public.perimeter_logs add column if not exists brazo_izq numeric;
+alter table public.perimeter_logs add column if not exists pierna_izq numeric;
+
+-- ID del entrenador del usuario actual (para que el cliente lea sus formularios).
+create or replace function public.my_trainer_id() returns uuid
+language sql stable security definer set search_path = public as $$
+  select trainer_id from public.profiles where id = auth.uid()
+$$;
+
+-- Formularios personalizados creados por el entrenador.
+create table if not exists public.custom_forms (
+  id uuid primary key default gen_random_uuid(),
+  trainer_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null,
+  intro text,
+  color text,
+  questions jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+alter table public.custom_forms enable row level security;
+drop policy if exists "trainer manages own forms" on public.custom_forms;
+create policy "trainer manages own forms" on public.custom_forms
+  for all using (trainer_id = auth.uid()) with check (trainer_id = auth.uid());
+drop policy if exists "client reads trainer forms" on public.custom_forms;
+create policy "client reads trainer forms" on public.custom_forms
+  for select using (trainer_id = public.my_trainer_id());
+
 -- Carpetas para organizar las fotos de progreso (cliente y entrenador).
 create table if not exists public.photo_folders (
   id uuid primary key default gen_random_uuid(),

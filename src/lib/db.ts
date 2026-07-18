@@ -49,19 +49,23 @@ export interface PerimeterLog {
   cintura: number | null
   cadera: number | null
   pecho: number | null
-  brazo: number | null
-  pierna: number | null
+  brazo: number | null // brazo derecho (columna histórica)
+  brazo_izq: number | null
+  pierna: number | null // pierna derecha (columna histórica)
+  pierna_izq: number | null
   cuello: number | null
   created_at: string
 }
 
 export const PERIMETER_FIELDS = [
+  { key: 'cuello', label: 'Cuello' },
+  { key: 'pecho', label: 'Pecho' },
   { key: 'cintura', label: 'Cintura' },
   { key: 'cadera', label: 'Cadera' },
-  { key: 'pecho', label: 'Pecho' },
-  { key: 'brazo', label: 'Brazo' },
-  { key: 'pierna', label: 'Pierna' },
-  { key: 'cuello', label: 'Cuello' },
+  { key: 'brazo', label: 'Brazo derecho' },
+  { key: 'brazo_izq', label: 'Brazo izquierdo' },
+  { key: 'pierna', label: 'Pierna derecha' },
+  { key: 'pierna_izq', label: 'Pierna izquierda' },
 ] as const
 
 // ---- Perfil ----
@@ -217,6 +221,18 @@ export async function deletePerimeter(id: string) {
   if (error) throw error
 }
 
+export async function updatePerimeter(
+  id: string,
+  values: Partial<Record<(typeof PERIMETER_FIELDS)[number]['key'], number | null>>,
+  logDate?: string,
+) {
+  const { error } = await supabase
+    .from('perimeter_logs')
+    .update({ ...values, ...(logDate ? { log_date: logDate } : {}) })
+    .eq('id', id)
+  if (error) throw error
+}
+
 // ---- Fotos de progreso ----
 export const PHOTO_BUCKET = 'progress-photos'
 
@@ -281,7 +297,7 @@ export async function listPhotos(clientId: string): Promise<PhotoWithUrl[]> {
   return rows.map((r) => ({ ...r, url: urlByPath.get(r.storage_path) ?? null }))
 }
 
-export async function addPhoto(clientId: string, file: File, folderId?: string | null): Promise<void> {
+export async function addPhoto(clientId: string, file: File, folderId?: string | null, logDate?: string): Promise<void> {
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
   const path = `${clientId}/${crypto.randomUUID()}.${ext}`
   const { error: upErr } = await supabase.storage
@@ -290,7 +306,7 @@ export async function addPhoto(clientId: string, file: File, folderId?: string |
   if (upErr) throw upErr
   const { error } = await supabase
     .from('progress_photos')
-    .insert({ client_id: clientId, storage_path: path, folder_id: folderId ?? null })
+    .insert({ client_id: clientId, storage_path: path, folder_id: folderId ?? null, ...(logDate ? { log_date: logDate } : {}) })
   if (error) throw error
 }
 
