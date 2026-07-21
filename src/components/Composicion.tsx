@@ -9,6 +9,8 @@ interface Props {
   perim: PerimeterLog | null
 }
 
+const dash = (v: number | null | undefined) => (v == null ? '—' : String(v))
+
 export default function Composicion({ sex, heightCm, weight, perim }: Props) {
   const res = computeComposition({
     sex,
@@ -40,7 +42,7 @@ export default function Composicion({ sex, heightCm, weight, perim }: Props) {
     <div>
       {!res.reliable && (
         <div style={{ fontSize: 11.5, color: '#f5a99f', background: 'rgba(219,24,9,0.1)', border: '1px solid rgba(219,24,9,0.3)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, lineHeight: 1.5 }}>
-          ⚠ Resultado fuera de rango — revisa las medidas de <b>cintura, cuello y cadera</b>. Suele pasar si están tomadas en el sitio equivocado o intercambiadas. (Cintura: a la altura del ombligo · Cuello: justo bajo la nuez · Cadera: por la parte más ancha del glúteo.)
+          ⚠ Este cálculo estimado ha dado un valor poco habitual. Revisa dos cosas: <b>1)</b> que las medidas de <b>cintura, cuello y cadera</b> estén bien tomadas (usa la <b>ⓘ</b> al registrar perímetros) y no intercambiadas; <b>2)</b> que los datos que usa la fórmula estén bien apuntados en la ficha, sobre todo la <b>altura en centímetros</b> (p. ej. 168, no 1,68). Comprueba también sexo, cintura, cuello y cadera en la línea «Calculado con» de aquí abajo. Si todo está correcto, puedes ignorarlo: es solo una estimación.
         </div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -58,7 +60,12 @@ export default function Composicion({ sex, heightCm, weight, perim }: Props) {
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 12, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 10.5, color: mut(0.5), marginTop: 12, lineHeight: 1.6, background: colors.surface2, borderRadius: 8, padding: '8px 10px' }}>
+        <b style={{ color: mut(0.65) }}>Calculado con:</b> altura {dash(heightCm)} cm · cintura {dash(perim?.cintura)} · cuello {dash(perim?.cuello)}
+        {sex === 'female' ? ` · cadera ${dash(perim?.cadera)}` : ''} · peso {dash(weight)} kg.
+        {' '}Si algún dato no cuadra con el tuyo, corrígelo en la ficha o en el registro de perímetros.
+      </div>
+      <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 8, lineHeight: 1.5 }}>
         Estimación · grasa por método US Navy (peso y perímetros). Músculo y hueso son aproximados; úsalo como referencia de tendencia, no como medición clínica.
       </div>
     </div>

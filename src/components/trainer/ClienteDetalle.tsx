@@ -23,6 +23,7 @@ import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
 import { downloadFormPdf } from '../../lib/formPdf'
+import MeasureGuide from '../MeasureGuide'
 import { getClientNote, saveClientNote } from '../../lib/notes'
 import { giftTimeline, listClaims, removeMilestoneClaim, setMilestoneDelivered, type GiftClaim } from '../../lib/gifts'
 import { generateClientReport } from '../../lib/report'
@@ -1022,6 +1023,10 @@ function TrainerPerimModal({ clientId, onClose, onSaved }: { clientId: string; o
 
   return (
     <Modal title="Registrar perímetros del cliente" onClose={onClose}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, background: colors.surface2, borderRadius: 10, padding: '9px 12px' }}>
+        <MeasureGuide />
+        <span style={{ fontSize: 12, color: mut(0.6), lineHeight: 1.4 }}>Guía de por dónde tomar cada medida.</span>
+      </div>
       <label style={{ display: 'block', marginBottom: 10 }}>
         <span style={labelStyle}>Fecha (opcional, por defecto hoy)</span>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />

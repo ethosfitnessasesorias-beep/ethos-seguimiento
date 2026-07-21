@@ -55,9 +55,14 @@ export function computeComposition(input: CompositionInput): CompositionResult |
     const denom = 1.29579 - 0.35004 * log10(Math.max(1, waist + hip - neck)) + 0.221 * log10(h)
     raw = 495 / denom - 450
   }
-  // Fuera de una banda plausible => las medidas probablemente están mal tomadas.
-  const reliable = raw >= 4 && raw <= 55
-  const fatPct = Math.min(60, Math.max(3, raw))
+  // Banda plausible. Fuera de ella (valores negativos, disparados o imposibles)
+  // casi siempre es un error de medida: cintura/cuello intercambiados o una errata.
+  // La fórmula US Navy tiende a dar valores altos en mujeres con cadera ancha,
+  // por eso el techo es más alto en mujeres (evita falsos avisos con medidas correctas).
+  const hi = input.sex === 'female' ? 55 : 45
+  const lo = input.sex === 'female' ? 8 : 4
+  const reliable = raw >= lo && raw <= hi
+  const fatPct = Math.min(65, Math.max(3, raw))
 
   const fatKg = (fatPct / 100) * weight
   const leanKg = weight - fatKg

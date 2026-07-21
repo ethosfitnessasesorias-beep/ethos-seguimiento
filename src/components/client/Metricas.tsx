@@ -17,6 +17,7 @@ import { changeColor, fullDate, perimeterRows, shortDate, weightChart } from '..
 import Modal from '../Modal'
 import ProgressPhotos from '../ProgressPhotos'
 import Composicion from '../Composicion'
+import MeasureGuide from '../MeasureGuide'
 
 const card: React.CSSProperties = {
   background: colors.surface1,
@@ -420,6 +421,12 @@ function PerimModal({ clientId, last, onClose, onSaved }: { clientId: string; la
 
   return (
     <Modal title="Registrar perímetros" onClose={onClose}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, background: colors.surface2, borderRadius: 10, padding: '9px 12px' }}>
+        <MeasureGuide />
+        <span style={{ fontSize: 12, color: mut(0.6), lineHeight: 1.4 }}>
+          ¿Dudas de por dónde medir? Toca la <b style={{ color: '#f5a99f' }}>ⓘ</b> para ver el dibujo.
+        </span>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {PERIMETER_FIELDS.map((f) => (
           <NumberField key={f.key} label={`${f.label} (cm)`} value={vals[f.key]} onChange={(v) => setVals((s) => ({ ...s, [f.key]: v }))} />
