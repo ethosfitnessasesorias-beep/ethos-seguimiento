@@ -10,7 +10,7 @@ const LINE = colors.accent
 const GUIDE: { n: number; label: string; tip: string }[] = [
   { n: 1, label: 'Cuello', tip: 'Rodea el cuello justo por debajo de la nuez, sin apretar.' },
   { n: 2, label: 'Pecho', tip: 'A la altura de los pezones, cinta horizontal, al terminar de soltar el aire.' },
-  { n: 3, label: 'Cintura', tip: 'A la altura del ombligo, de pie y relajada (no metas tripa).' },
+  { n: 3, label: 'Cintura', tip: 'A la altura del ombligo, de pie y relajado (sin meter tripa).' },
   { n: 4, label: 'Cadera', tip: 'Por la parte más ancha del glúteo.' },
   { n: 5, label: 'Brazo', tip: 'En el punto más ancho del bíceps, con el brazo relajado a un lado.' },
   { n: 6, label: 'Pierna', tip: 'En la parte más ancha del muslo, de pie.' },
@@ -29,7 +29,7 @@ function Badge({ x, y, n }: { x: number; y: number; n: number }) {
 
 function BodyDiagram() {
   return (
-    <svg viewBox="0 0 260 470" width="100%" style={{ maxWidth: 240, display: 'block', margin: '0 auto' }}>
+    <svg viewBox="0 0 260 470" width="100%" style={{ maxWidth: 150, display: 'block', margin: '0 auto' }}>
       {/* brazos (detrás del torso) */}
       <g stroke={BODY} strokeWidth={20} strokeLinecap="round" fill="none">
         <line x1={170} y1={100} x2={192} y2={250} />
@@ -95,7 +95,7 @@ export default function MeasureGuide() {
       {open && (
         <Modal title="Cómo tomarse las medidas" onClose={() => setOpen(false)}>
           <BodyDiagram />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
             {GUIDE.map((g) => (
               <div key={g.n} style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
                 <span
@@ -122,8 +122,8 @@ export default function MeasureGuide() {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 16, lineHeight: 1.6, background: colors.surface2, borderRadius: 10, padding: '10px 12px' }}>
-            💡 Mídete siempre en las mismas condiciones (mejor por la mañana, en ayunas). La cinta debe quedar pegada a la piel pero sin apretar ni marcar. Mantente de pie y relajada.
+          <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 14, lineHeight: 1.6, background: colors.surface2, borderRadius: 10, padding: '10px 12px' }}>
+            💡 Mídete siempre en las mismas condiciones (mejor por la mañana, en ayunas). La cinta debe quedar pegada a la piel pero sin apretar ni marcar. Mantente de pie y relajado.
           </div>
         </Modal>
       )}
