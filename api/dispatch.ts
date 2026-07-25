@@ -15,7 +15,23 @@ import webpush from 'web-push'
 // de @types/node en la compilación de las funciones.
 declare const process: { env: Record<string, string | undefined> }
 
+// Permite que Vercel deje correr la función hasta 60s (aunque nosotros cortamos
+// antes, en ~25s, para responder al cron antes de que él la dé por caída).
+export const config = { maxDuration: 60 }
+
 const TZ = 'Europe/Madrid'
+
+// Limita cualquier promesa (envío de red) a un máximo de tiempo, para que un
+// solo envío colgado no bloquee toda la función y provoque un timeout del cron.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`timeout ${label}`)), ms)
+    p.then(
+      (v) => { clearTimeout(t); resolve(v) },
+      (e) => { clearTimeout(t); reject(e) },
+    )
+  })
+}
 
 function madridNow(): { date: string; hhmm: string; weekday: number } {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -55,12 +71,19 @@ if (PUSH_ENABLED) {
 
 async function sendEmail(to: string, subject: string, text: string) {
   const from = process.env.RESEND_FROM || 'ETHOS GYM <onboarding@resend.dev>'
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, subject, text }),
-  })
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`)
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), 8000)
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, subject, text }),
+      signal: ac.signal,
+    })
+    if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 interface Req { headers: Record<string, string | undefined> }
@@ -91,9 +114,21 @@ export default async function handler(req: Req, res: Res) {
   let pushes = 0
   const errors: string[] = []
 
+  // Presupuesto de tiempo: cortamos en 25s para responder al cron (timeout 30s)
+  // antes de que nos dé por caídos. Lo que no dé tiempo se reintenta en la
+  // siguiente pasada (solo marcamos como enviado lo que sí se envió).
+  const startedAt = Date.now()
+  const withinBudget = () => Date.now() - startedAt < 25000
+
+  // Caché de email/nombre por cliente, para no repetir consultas en cada envío.
+  const infoCache = new Map<string, { email: string | null; name: string | null }>()
   const clientInfo = async (clientId: string) => {
+    const cached = infoCache.get(clientId)
+    if (cached) return cached
     const { data } = await supabase.from('profiles').select('email, full_name').eq('id', clientId).maybeSingle()
-    return { email: data?.email ?? null, name: data?.full_name ?? null }
+    const info = { email: data?.email ?? null, name: data?.full_name ?? null }
+    infoCache.set(clientId, info)
+    return info
   }
 
   const sendPush = async (clientId: string, title: string, body: string): Promise<number> => {
@@ -102,7 +137,11 @@ export default async function handler(req: Req, res: Res) {
     let n = 0
     for (const s of subs ?? []) {
       try {
-        await webpush.sendNotification(s.subscription as webpush.PushSubscription, JSON.stringify({ title, body }))
+        await withTimeout(
+          webpush.sendNotification(s.subscription as webpush.PushSubscription, JSON.stringify({ title, body })),
+          8000,
+          'push',
+        )
         pushes++
         n++
       } catch (e: unknown) {
@@ -142,6 +181,7 @@ export default async function handler(req: Req, res: Res) {
     .lte('send_date', today)
     .is('notified_at', null)
   for (const m of oneOffs ?? []) {
+    if (!withinBudget()) break
     // Si es de un día anterior, se envía ya. Si es de hoy, espera a su hora.
     if (m.send_date === today && !timeReached(m.send_time, hhmm)) continue
     const ok = await deliver(m.client_id, m.body)
@@ -153,6 +193,7 @@ export default async function handler(req: Req, res: Res) {
     .from('message_schedules')
     .select('id, client_id, body, weekday, interval_weeks, start_date, end_date, send_time')
   for (const s of schedules ?? []) {
+    if (!withinBudget()) break
     try {
       if (s.end_date && today > s.end_date) continue
       if (today < s.start_date) continue
@@ -203,6 +244,7 @@ export default async function handler(req: Req, res: Res) {
       .eq('completed', false)
       .in('type', REMIND_TYPES)
     for (const ev of tomEvents ?? []) {
+      if (!withinBudget()) break
       try {
         const what = ev.title || TYPE_LABEL[ev.type] || 'una tarea'
         const body = `📋 Recordatorio: mañana toca ${what}. ¡No lo olvides, {nombre}!`
@@ -226,6 +268,7 @@ export default async function handler(req: Req, res: Res) {
       .lte('remind_date', today)
       .is('notified_at', null)
     for (const r of rems ?? []) {
+      if (!withinBudget()) break
       try {
         const { data: t } = await supabase.from('profiles').select('email, full_name').eq('id', r.trainer_id).maybeSingle()
         if (!t?.email) continue
@@ -271,6 +314,7 @@ export default async function handler(req: Req, res: Res) {
       .select('id, birth_date, start_date, last_birthday, last_anniversary, status')
       .eq('role', 'client')
     for (const c of clients ?? []) {
+      if (!withinBudget()) break
       if ((c.status ?? 'active') !== 'active') continue
       try {
         // Cumpleaños
@@ -294,5 +338,5 @@ export default async function handler(req: Req, res: Res) {
     }
   }
 
-  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, reminders, agenda, greetings, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
+  return res.status(200).json({ ok: true, date: today, time: hhmm, emails, pushes, reminders, agenda, greetings, truncated: !withinBudget(), ms: Date.now() - startedAt, errors, channels: { email: EMAIL_ENABLED, push: PUSH_ENABLED } })
 }
