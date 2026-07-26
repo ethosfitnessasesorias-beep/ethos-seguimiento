@@ -676,3 +676,10 @@ language sql stable security definer set search_path = public as $$
   where t.role = 'trainer'
   group by t.id, t.full_name
 $$;
+
+-- ============================================================
+--  v24 · El entrenador puede eliminar envíos de formularios
+-- ============================================================
+drop policy if exists "trainer deletes forms" on public.form_submissions;
+create policy "trainer deletes forms" on public.form_submissions
+  for delete using (public.my_role() = 'trainer');

@@ -143,6 +143,26 @@ export async function listEvents(clientId: string, fromISO: string, toISO: strin
   return (data ?? []) as CalEvent[]
 }
 
+/**
+ * Formularios "pendientes" del cliente: eventos de agenda enlazados a un
+ * formulario (reporte, cambio, encuesta, nutrición) cuya fecha ya ha llegado
+ * y que aún no están hechos. El cliente solo puede rellenar estos.
+ */
+export async function listDueFormEvents(clientId: string): Promise<CalEvent[]> {
+  const today = todayStr()
+  const formTypes = (Object.keys(EVENT_TYPES) as EventType[]).filter((t) => EVENT_TYPES[t].form)
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('client_id', clientId)
+    .lte('event_date', today)
+    .eq('completed', false)
+    .in('type', formTypes)
+    .order('event_date', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as CalEvent[]
+}
+
 export async function addEvent(
   clientId: string,
   e: { event_date: string; type: EventType; title?: string; time?: string; detail?: string },

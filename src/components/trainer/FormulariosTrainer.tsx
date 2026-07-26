@@ -51,7 +51,7 @@ export default function FormulariosTrainer() {
         </button>
       </div>
       <div style={{ fontSize: 13.5, color: mut(0.5), marginBottom: 22 }}>
-        Crea formularios propios. Aparecerán en la app de todos tus clientes para que los rellenen.
+        Crea y edita tus propios formularios. Puedes reutilizarlos y descargarlos en PDF desde la ficha de cada cliente.
       </div>
 
       {loading ? (

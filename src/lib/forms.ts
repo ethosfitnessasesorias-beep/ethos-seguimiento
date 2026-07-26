@@ -195,3 +195,8 @@ export async function setReviewed(id: string, reviewed: boolean): Promise<void> 
   const { error } = await supabase.from('form_submissions').update({ reviewed }).eq('id', id)
   if (error) throw error
 }
+
+export async function deleteSubmission(id: string): Promise<void> {
+  const { error } = await supabase.from('form_submissions').delete().eq('id', id)
+  if (error) throw error
+}

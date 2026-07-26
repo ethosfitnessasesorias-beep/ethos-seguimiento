@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, type CalEvent, type EventType, type FormLink, type MetricAction } from '../../lib/events'
+import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, todayStr, type CalEvent, type EventType, type FormLink, type MetricAction } from '../../lib/events'
 import Modal from '../Modal'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -212,13 +212,18 @@ export default function Agenda({ clientId, onOpenForm, onOpenMetric, onOpenWhats
                   <div style={{ fontSize: 13.5, fontWeight: 600, textDecoration: e.completed ? 'line-through' : 'none', color: e.completed ? mut(0.5) : colors.text }}>{e.title || cfg.label}</div>
                   {e.title && <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 1 }}>{cfg.label}</div>}
                   {e.detail && <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2 }}>{e.detail}</div>}
-                  {cfg.form && (
+                  {cfg.form && e.event_date <= todayStr() && (
                     <button
                       onClick={() => onOpenForm(cfg.form!)}
                       style={{ marginTop: 8, background: cfg.color, color: '#0a0a0a', border: 'none', borderRadius: 8, padding: '6px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                     >
                       Rellenar ahora ›
                     </button>
+                  )}
+                  {cfg.form && e.event_date > todayStr() && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: mut(0.4) }}>
+                      Podrás rellenarlo el {e.event_date.slice(8, 10)}/{e.event_date.slice(5, 7)}
+                    </div>
                   )}
                   {cfg.metric && (
                     <button

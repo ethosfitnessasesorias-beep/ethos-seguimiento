@@ -21,7 +21,7 @@ import {
 import { changeColor, fullDate, METRIC_OPTIONS, perimeterRows, perimeterSeries, weeklyWeightChanges, weightSeries } from '../../lib/metrics'
 import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
-import { listSubmissions, setReviewed, type FormSubmission } from '../../lib/forms'
+import { listSubmissions, setReviewed, deleteSubmission, type FormSubmission } from '../../lib/forms'
 import { downloadFormPdf } from '../../lib/formPdf'
 import MeasureGuide from '../MeasureGuide'
 import { getClientNote, saveClientNote } from '../../lib/notes'
@@ -809,6 +809,8 @@ function Row({ label, value, valueColor, bold }: { label: string; value: string;
 function TrainerForms({ clientId, clientName }: { clientId: string; clientName: string | null }) {
   const [subs, setSubs] = useState<FormSubmission[]>([])
   const [loading, setLoading] = useState(true)
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'pending' | 'reviewed'>('all')
 
   const reload = () => {
     setLoading(true)
@@ -820,6 +822,11 @@ function TrainerForms({ clientId, clientName }: { clientId: string; clientName: 
 
   const toggle = async (s: FormSubmission) => {
     await setReviewed(s.id, !s.reviewed)
+    reload()
+  }
+  const remove = async (s: FormSubmission) => {
+    if (!confirm(`¿Eliminar este envío de «${s.form_title}» del ${s.created_at.slice(0, 10)}? No se puede deshacer.`)) return
+    await deleteSubmission(s.id)
     reload()
   }
 
@@ -835,16 +842,47 @@ function TrainerForms({ clientId, clientName }: { clientId: string; clientName: 
     )
   }
 
+  // Tipos presentes (para el filtro), sin repetir.
+  const types = Array.from(new Map(subs.map((s) => [s.form_type, s.form_title])).entries())
+  const filtered = subs.filter((s) => {
+    if (typeFilter !== 'all' && s.form_type !== typeFilter) return false
+    if (reviewFilter === 'pending' && s.reviewed) return false
+    if (reviewFilter === 'reviewed' && !s.reviewed) return false
+    return true
+  })
+
+  const selStyle: React.CSSProperties = { background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '7px 10px', fontFamily: 'inherit', fontSize: 12.5, outline: 'none' }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {subs.map((f) => (
-        <FormAccordion key={f.id} f={f} clientName={clientName} onToggleReviewed={() => toggle(f)} />
-      ))}
+    <div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selStyle}>
+          <option value="all">Todos los tipos</option>
+          {types.map(([type, title]) => (
+            <option key={type} value={type}>{title}</option>
+          ))}
+        </select>
+        <select value={reviewFilter} onChange={(e) => setReviewFilter(e.target.value as 'all' | 'pending' | 'reviewed')} style={selStyle}>
+          <option value="all">Revisados y sin revisar</option>
+          <option value="pending">Solo sin revisar</option>
+          <option value="reviewed">Solo revisados</option>
+        </select>
+        <span style={{ fontSize: 12, color: mut(0.45), marginLeft: 'auto' }}>{filtered.length} de {subs.length}</span>
+      </div>
+      {filtered.length === 0 ? (
+        <div style={{ ...card, padding: '24px', textAlign: 'center', fontSize: 13, color: mut(0.45) }}>Ningún formulario con ese filtro.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filtered.map((f) => (
+            <FormAccordion key={f.id} f={f} clientName={clientName} onToggleReviewed={() => toggle(f)} onDelete={() => remove(f)} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function FormAccordion({ f, clientName, onToggleReviewed }: { f: FormSubmission; clientName: string | null; onToggleReviewed: () => void }) {
+function FormAccordion({ f, clientName, onToggleReviewed, onDelete }: { f: FormSubmission; clientName: string | null; onToggleReviewed: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
   return (
@@ -874,6 +912,13 @@ function FormAccordion({ f, clientName, onToggleReviewed }: { f: FormSubmission;
           style={{ fontSize: 10.5, fontWeight: 600, cursor: 'pointer', color: f.reviewed ? colors.green : colors.accent, background: f.reviewed ? 'rgba(74,222,128,0.12)' : 'rgba(219,24,9,0.14)', border: 'none', padding: '4px 11px', borderRadius: 999, fontFamily: 'inherit', flex: 'none' }}
         >
           {f.reviewed ? '✓ Revisado' : 'Marcar revisado'}
+        </button>
+        <button
+          onClick={onDelete}
+          title="Eliminar este envío"
+          style={{ fontSize: 12, fontWeight: 600, cursor: 'pointer', color: mut(0.5), background: 'none', border: '1px solid rgba(255,255,255,0.12)', padding: '4px 9px', borderRadius: 999, fontFamily: 'inherit', flex: 'none' }}
+        >
+          🗑
         </button>
       </div>
       {open && (

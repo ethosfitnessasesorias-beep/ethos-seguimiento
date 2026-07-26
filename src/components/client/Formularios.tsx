@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
-import type { FormLink } from '../../lib/events'
+import { listDueFormEvents, setEventCompleted, todayStr, type CalEvent, type FormLink } from '../../lib/events'
 import {
-  customToTemplate,
-  FORM_TEMPLATES,
-  listCustomForms,
   listSubmissions,
   submitForm,
   templateByType,
@@ -35,14 +32,15 @@ interface FormulariosProps {
 export default function Formularios({ profile, initialFormType, onConsumed }: FormulariosProps) {
   const [filling, setFilling] = useState<FormTemplate | null>(null)
   const [subs, setSubs] = useState<FormSubmission[]>([])
-  const [customTemplates, setCustomTemplates] = useState<FormTemplate[]>([])
+  const [due, setDue] = useState<CalEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const today = todayStr()
 
   const reload = useCallback(async () => {
     try {
-      const [s, cf] = await Promise.all([listSubmissions(profile.id), listCustomForms().catch(() => [])])
+      const [s, d] = await Promise.all([listSubmissions(profile.id), listDueFormEvents(profile.id).catch(() => [])])
       setSubs(s)
-      setCustomTemplates(cf.map(customToTemplate))
+      setDue(d)
     } finally {
       setLoading(false)
     }
@@ -52,7 +50,7 @@ export default function Formularios({ profile, initialFormType, onConsumed }: Fo
     reload()
   }, [reload])
 
-  // Al llegar desde el calendario, abre directamente ese formulario.
+  // Al llegar desde el calendario/Hoy, abre directamente ese formulario.
   useEffect(() => {
     if (initialFormType) {
       const t = templateByType(initialFormType)
@@ -62,40 +60,77 @@ export default function Formularios({ profile, initialFormType, onConsumed }: Fo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFormType])
 
+  // Al enviar, marca como hecho el evento pendiente más antiguo de ese tipo
+  // (para que desaparezca de la lista y no se pueda volver a rellenar).
+  const afterSent = async (template: FormTemplate) => {
+    const ev = due.find((e) => e.type === template.type)
+    if (ev) {
+      try {
+        await setEventCompleted(ev.id, profile.id, true)
+      } catch {
+        /* si falla, se reintenta en la próxima carga */
+      }
+    }
+    setFilling(null)
+    setLoading(true)
+    await reload()
+  }
+
   if (filling) {
     return (
       <FormFill
         template={filling}
         profile={profile}
         onCancel={() => setFilling(null)}
-        onSent={async () => {
-          setFilling(null)
-          setLoading(true)
-          await reload()
-        }}
+        onSent={() => afterSent(filling)}
       />
     )
   }
 
+  // Plantilla de cada formulario pendiente (uno por evento de la agenda que ya tocó).
+  const pending = due
+    .map((e) => ({ ev: e, tpl: templateByType(e.type) }))
+    .filter((x): x is { ev: CalEvent; tpl: FormTemplate } => !!x.tpl)
+
   return (
     <div>
-      <div style={{ fontSize: 12, color: mut(0.5), margin: '2px 4px 12px' }}>Rellena tus formularios de seguimiento.</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {[...FORM_TEMPLATES, ...customTemplates].map((t) => (
-          <button
-            key={t.type}
-            onClick={() => setFilling(t)}
-            style={{ ...card, textAlign: 'left', padding: '16px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, fontFamily: 'inherit' }}
-          >
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: t.color, flex: 'none' }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>{t.title}</div>
-              <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 2 }}>{t.intro}</div>
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: colors.accent }}>Rellenar ›</span>
-          </button>
-        ))}
+      <div style={{ fontSize: 12, color: mut(0.5), margin: '2px 4px 14px', lineHeight: 1.5 }}>
+        Aquí verás los formularios que tu entrenador te programe. Podrás rellenarlos cuando llegue su día.
       </div>
+
+      <div style={{ fontSize: 11, letterSpacing: 1.5, color: mut(0.4), fontWeight: 600, margin: '0 4px 10px' }}>
+        PENDIENTES
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 12.5, color: mut(0.4), padding: '6px 4px' }}>Cargando…</div>
+      ) : pending.length === 0 ? (
+        <div style={{ ...card, padding: '26px 18px', fontSize: 13, color: mut(0.5), textAlign: 'center', lineHeight: 1.6 }}>
+          No tienes formularios pendientes 🎉
+          <div style={{ fontSize: 11.5, color: mut(0.4), marginTop: 4 }}>Tu entrenador te avisará cuando toque rellenar uno.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {pending.map(({ ev, tpl }) => {
+            const overdue = ev.event_date < today
+            return (
+              <button
+                key={ev.id}
+                onClick={() => setFilling(tpl)}
+                style={{ ...card, textAlign: 'left', padding: '16px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, fontFamily: 'inherit', border: `1px solid ${overdue ? 'rgba(245,166,35,0.3)' : 'rgba(255,255,255,0.06)'}` }}
+              >
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: tpl.color, flex: 'none' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: colors.text }}>{tpl.title}</div>
+                  <div style={{ fontSize: 11.5, color: overdue ? colors.amber : mut(0.5), marginTop: 2 }}>
+                    {overdue ? `Pendiente desde el ${ev.event_date.slice(8, 10)}/${ev.event_date.slice(5, 7)}` : 'Para hoy'}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: colors.accent }}>Rellenar ›</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div style={{ fontSize: 11, letterSpacing: 1.5, color: mut(0.4), fontWeight: 600, margin: '22px 4px 10px' }}>
         MIS ENVÍOS
