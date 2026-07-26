@@ -3,10 +3,12 @@ import { colors, mut } from '../../theme'
 import type { Profile } from '../../lib/db'
 import { listDueFormEvents, setEventCompleted, todayStr, type CalEvent, type FormLink } from '../../lib/events'
 import {
+  effectiveTemplateByType,
+  listCustomForms,
   listSubmissions,
   submitForm,
-  templateByType,
   type Answer,
+  type CustomForm,
   type FormSubmission,
   type FormTemplate,
   type Question,
@@ -33,14 +35,21 @@ export default function Formularios({ profile, initialFormType, onConsumed }: Fo
   const [filling, setFilling] = useState<FormTemplate | null>(null)
   const [subs, setSubs] = useState<FormSubmission[]>([])
   const [due, setDue] = useState<CalEvent[]>([])
+  const [customs, setCustoms] = useState<CustomForm[]>([])
+  const [pendingType, setPendingType] = useState<FormLink | null>(null)
   const [loading, setLoading] = useState(true)
   const today = todayStr()
 
   const reload = useCallback(async () => {
     try {
-      const [s, d] = await Promise.all([listSubmissions(profile.id), listDueFormEvents(profile.id).catch(() => [])])
+      const [s, d, cf] = await Promise.all([
+        listSubmissions(profile.id),
+        listDueFormEvents(profile.id).catch(() => []),
+        listCustomForms().catch(() => []),
+      ])
       setSubs(s)
       setDue(d)
+      setCustoms(cf)
     } finally {
       setLoading(false)
     }
@@ -50,15 +59,24 @@ export default function Formularios({ profile, initialFormType, onConsumed }: Fo
     reload()
   }, [reload])
 
-  // Al llegar desde el calendario/Hoy, abre directamente ese formulario.
+  // Al llegar desde el calendario/Hoy, recuerda el tipo para abrirlo cuando
+  // estén cargadas las personalizaciones del entrenador.
   useEffect(() => {
     if (initialFormType) {
-      const t = templateByType(initialFormType)
-      if (t) setFilling(t)
+      setPendingType(initialFormType)
       onConsumed?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFormType])
+
+  useEffect(() => {
+    if (pendingType && !loading) {
+      const t = effectiveTemplateByType(pendingType, customs)
+      if (t) setFilling(t)
+      setPendingType(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingType, loading, customs])
 
   // Al enviar, marca como hecho el evento pendiente más antiguo de ese tipo
   // (para que desaparezca de la lista y no se pueda volver a rellenar).
@@ -89,7 +107,7 @@ export default function Formularios({ profile, initialFormType, onConsumed }: Fo
 
   // Plantilla de cada formulario pendiente (uno por evento de la agenda que ya tocó).
   const pending = due
-    .map((e) => ({ ev: e, tpl: templateByType(e.type) }))
+    .map((e) => ({ ev: e, tpl: effectiveTemplateByType(e.type, customs) }))
     .filter((x): x is { ev: CalEvent; tpl: FormTemplate } => !!x.tpl)
 
   return (

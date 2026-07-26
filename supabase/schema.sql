@@ -683,3 +683,12 @@ $$;
 drop policy if exists "trainer deletes forms" on public.form_submissions;
 create policy "trainer deletes forms" on public.form_submissions
   for delete using (public.my_role() = 'trainer');
+
+-- ============================================================
+--  v25 · Poder editar también los formularios "base" (los de ETHOS)
+--  Una fila de custom_forms con base_type = 'reporte'|'cambio'|...
+--  es una versión personalizada de ese formulario base.
+-- ============================================================
+alter table public.custom_forms add column if not exists base_type text;
+create unique index if not exists custom_forms_base_type_uq
+  on public.custom_forms (trainer_id, base_type) where base_type is not null;

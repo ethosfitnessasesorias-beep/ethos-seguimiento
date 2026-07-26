@@ -122,7 +122,31 @@ export interface CustomForm {
   intro: string | null
   color: string | null
   questions: Question[]
+  /** Si personaliza un formulario base (reporte, cambio…), su tipo. Si es null, es un formulario nuevo. */
+  base_type: string | null
   created_at: string
+}
+
+// Aplica las personalizaciones del entrenador a los formularios base y devuelve
+// también los formularios nuevos que ha creado desde cero.
+export function applyOverrides(customs: CustomForm[]): { builtins: FormTemplate[]; customs: FormTemplate[] } {
+  const overrides = new Map<string, CustomForm>()
+  const pure: CustomForm[] = []
+  for (const c of customs) {
+    if (c.base_type) overrides.set(c.base_type, c)
+    else pure.push(c)
+  }
+  const builtins = FORM_TEMPLATES.map((t) => {
+    const o = overrides.get(t.type)
+    return o ? { type: t.type, title: o.title, intro: o.intro || t.intro, color: o.color || t.color, questions: o.questions } : t
+  })
+  return { builtins, customs: pure.map(customToTemplate) }
+}
+
+// Plantilla efectiva de un tipo (aplicando la personalización si existe).
+export function effectiveTemplateByType(type: string, customs: CustomForm[]): FormTemplate | undefined {
+  const { builtins, customs: cs } = applyOverrides(customs)
+  return [...builtins, ...cs].find((t) => t.type === type)
 }
 
 export async function listCustomForms(): Promise<CustomForm[]> {
@@ -131,13 +155,13 @@ export async function listCustomForms(): Promise<CustomForm[]> {
   return (data ?? []) as CustomForm[]
 }
 
-export async function saveCustomForm(f: { id?: string; title: string; intro: string; color: string; questions: Question[] }): Promise<void> {
+export async function saveCustomForm(f: { id?: string; title: string; intro: string; color: string; questions: Question[]; base_type?: string | null }): Promise<void> {
   if (f.id) {
     const { error } = await supabase.from('custom_forms').update({ title: f.title, intro: f.intro, color: f.color, questions: f.questions }).eq('id', f.id)
     if (error) throw error
   } else {
     const { data: u } = await supabase.auth.getUser()
-    const { error } = await supabase.from('custom_forms').insert({ trainer_id: u.user?.id, title: f.title, intro: f.intro, color: f.color, questions: f.questions })
+    const { error } = await supabase.from('custom_forms').insert({ trainer_id: u.user?.id, title: f.title, intro: f.intro, color: f.color, questions: f.questions, base_type: f.base_type ?? null })
     if (error) throw error
   }
 }
