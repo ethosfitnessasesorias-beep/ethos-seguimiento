@@ -3,10 +3,10 @@ import { supabase } from './supabase'
 // ---- Tipos de evento ----
 export type EventType =
   | 'entreno' | 'cardio' | 'habito'
-  | 'peso' | 'perimetros' | 'fotos'
+  | 'peso' | 'perimetros' | 'fotos' | 'pasos'
   | 'nutricion' | 'reporte' | 'cambio' | 'encuesta'
   | 'video' | 'comida'
-export type MetricAction = 'weight' | 'perim' | 'photo'
+export type MetricAction = 'weight' | 'perim' | 'photo' | 'steps'
 export type FormLink = 'reporte' | 'cambio' | 'encuesta' | 'nutricion'
 
 export interface EventTypeConfig {
@@ -27,6 +27,7 @@ export const EVENT_TYPES: Record<EventType, EventTypeConfig> = {
   peso: { label: 'Registrar peso', color: '#60a5fa', form: null, metric: 'weight' },
   perimetros: { label: 'Registrar perímetros', color: '#f472b6', form: null, metric: 'perim' },
   fotos: { label: 'Registrar fotos', color: '#facc15', form: null, metric: 'photo' },
+  pasos: { label: 'Registrar pasos', color: '#38bdf8', form: null, metric: 'steps' },
   nutricion: { label: 'Registro nutricional', color: '#34d399', form: 'nutricion' },
   reporte: { label: 'Rellenar reporte', color: '#2dd4bf', form: 'reporte' },
   cambio: { label: 'Cambio de planificación', color: '#a78bfa', form: 'cambio' },
@@ -37,7 +38,7 @@ export const EVENT_TYPES: Record<EventType, EventTypeConfig> = {
 
 export const EVENT_ORDER: EventType[] = [
   'entreno', 'cardio', 'habito',
-  'peso', 'perimetros', 'fotos',
+  'peso', 'perimetros', 'fotos', 'pasos',
   'nutricion', 'reporte', 'cambio', 'encuesta',
   'video', 'comida',
 ]

@@ -3,17 +3,22 @@ import { colors, mut } from '../../theme'
 import {
   addPerimeters,
   addWeight,
+  addStep,
   deletePerimeter,
   deleteWeight,
+  deleteStep,
   updateWeight,
+  updateStep,
   listPerimeters,
   listWeights,
+  listSteps,
   PERIMETER_FIELDS,
   type PerimeterLog,
   type WeightLog,
+  type StepLog,
 } from '../../lib/db'
 import type { Profile } from '../../lib/db'
-import { changeColor, fullDate, perimeterRows, shortDate, weightChart } from '../../lib/metrics'
+import { changeColor, fullDate, perimeterRows, shortDate, weightChart, stepsChart } from '../../lib/metrics'
 import Modal from '../Modal'
 import ProgressPhotos from '../ProgressPhotos'
 import Composicion from '../Composicion'
@@ -86,7 +91,7 @@ const delBtn: React.CSSProperties = {
 
 interface MetricasProps {
   profile: Profile
-  initialAction?: 'weight' | 'perim' | 'photo' | null
+  initialAction?: 'weight' | 'perim' | 'photo' | 'steps' | null
   onConsumed?: () => void
 }
 
@@ -95,12 +100,15 @@ export default function Metricas({ profile, initialAction, onConsumed }: Metrica
   const [photoPick, setPhotoPick] = useState(0)
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [perims, setPerims] = useState<PerimeterLog[]>([])
+  const [steps, setSteps] = useState<StepLog[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-  const [modal, setModal] = useState<null | 'weight' | 'perim'>(null)
+  const [modal, setModal] = useState<null | 'weight' | 'perim' | 'steps'>(null)
   const [showWHist, setShowWHist] = useState(false)
   const [showPHist, setShowPHist] = useState(false)
+  const [showSHist, setShowSHist] = useState(false)
   const [editW, setEditW] = useState<WeightLog | null>(null)
+  const [editS, setEditS] = useState<StepLog | null>(null)
 
   const removeWeight = async (id: string) => {
     if (!confirm('¿Eliminar este registro de peso?')) return
@@ -120,13 +128,23 @@ export default function Metricas({ profile, initialAction, onConsumed }: Metrica
       setErr(e instanceof Error ? e.message : 'No se pudo eliminar.')
     }
   }
+  const removeStep = async (id: string) => {
+    if (!confirm('¿Eliminar este registro de pasos?')) return
+    try {
+      await deleteStep(id)
+      await refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo eliminar.')
+    }
+  }
 
   const refresh = useCallback(async () => {
     try {
       setErr(null)
-      const [w, p] = await Promise.all([listWeights(clientId), listPerimeters(clientId)])
+      const [w, p, s] = await Promise.all([listWeights(clientId), listPerimeters(clientId), listSteps(clientId)])
       setWeights(w)
       setPerims(p)
+      setSteps(s)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Error al cargar tus métricas.')
     } finally {
@@ -143,6 +161,7 @@ export default function Metricas({ profile, initialAction, onConsumed }: Metrica
     if (!initialAction) return
     if (initialAction === 'weight') setModal('weight')
     else if (initialAction === 'perim') setModal('perim')
+    else if (initialAction === 'steps') setModal('steps')
     else if (initialAction === 'photo') setPhotoPick((n) => n + 1)
     onConsumed?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,6 +172,8 @@ export default function Metricas({ profile, initialAction, onConsumed }: Metrica
   const diff = latest != null && first != null ? +(latest - first).toFixed(1) : null
   const chart = weightChart(weights, 320, 80, 8, 10)
   const rows = perimeterRows(perims)
+  const latestSteps = steps.length ? Number(steps[steps.length - 1].steps) : null
+  const stepsCh = stepsChart(steps, 320, 80, 8, 10)
 
   return (
     <div>
@@ -218,6 +239,54 @@ export default function Metricas({ profile, initialAction, onConsumed }: Metrica
                     <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
                       <button onClick={() => setEditW(w)} style={{ flex: 1, background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 0', color: mut(0.7), cursor: 'pointer', fontFamily: 'inherit', fontSize: 10.5, fontWeight: 600 }}>✎</button>
                       <button onClick={() => removeWeight(w.id)} title="Eliminar" style={{ background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 8px', color: mut(0.5), cursor: 'pointer', fontFamily: 'inherit', fontSize: 10.5 }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* pasos (promedio diario) */}
+      <div style={{ ...card, padding: '17px 17px 14px', marginTop: 14 }}>
+        <div>
+          <div style={{ fontSize: 12, color: mut(0.5), fontWeight: 500 }}>Promedio de pasos diario</div>
+          <div style={{ fontSize: 30, fontWeight: 700, marginTop: 2 }}>
+            {latestSteps != null ? latestSteps.toLocaleString('es-ES') : '—'}
+            <span style={{ fontSize: 14, fontWeight: 500, color: mut(0.5) }}> pasos/día</span>
+          </div>
+        </div>
+
+        {stepsCh ? (
+          <svg viewBox="0 0 320 80" style={{ width: '100%', height: 64, marginTop: 6, display: 'block' }}>
+            <path d={stepsCh.area} fill="rgba(56,189,248,0.14)" />
+            <path d={stepsCh.line} fill="none" stroke="#38bdf8" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <div style={{ fontSize: 12, color: mut(0.4), padding: '18px 0 8px' }}>
+            {loading ? 'Cargando…' : latestSteps != null ? 'Registra otra semana para ver tu evolución.' : 'Aún no has registrado tu media de pasos.'}
+          </div>
+        )}
+
+        <button style={{ ...primaryBtn, marginTop: 8, background: '#38bdf8', color: '#04252e' }} onClick={() => setModal('steps')}>
+          + Registrar media de pasos
+        </button>
+
+        {steps.length > 0 && (
+          <>
+            <button onClick={() => setShowSHist((s) => !s)} style={histToggle}>
+              {showSHist ? '▾ Ocultar registros' : `▸ Ver y editar registros (${steps.length})`}
+            </button>
+            {showSHist && (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginTop: 8, paddingBottom: 4 }} className="om-scroll">
+                {[...steps].reverse().map((s) => (
+                  <div key={s.id} style={{ flex: 'none', width: 124, background: colors.surface2, borderRadius: 10, padding: '9px 10px' }}>
+                    <div style={{ fontSize: 10, color: mut(0.5) }}>{fullDate(s.log_date)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2 }}>{Number(s.steps).toLocaleString('es-ES')}</div>
+                    <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
+                      <button onClick={() => setEditS(s)} style={{ flex: 1, background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 0', color: mut(0.7), cursor: 'pointer', fontFamily: 'inherit', fontSize: 10.5, fontWeight: 600 }}>✎</button>
+                      <button onClick={() => removeStep(s.id)} title="Eliminar" style={{ background: colors.surface1, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '4px 8px', color: mut(0.5), cursor: 'pointer', fontFamily: 'inherit', fontSize: 10.5 }}>✕</button>
                     </div>
                   </div>
                 ))}
@@ -306,10 +375,88 @@ export default function Metricas({ profile, initialAction, onConsumed }: Metrica
       {modal === 'perim' && (
         <PerimModal onClose={() => setModal(null)} onSaved={refresh} clientId={clientId} last={perims[perims.length - 1] ?? null} />
       )}
+      {modal === 'steps' && (
+        <StepModal onClose={() => setModal(null)} onSaved={refresh} clientId={clientId} last={latestSteps} />
+      )}
       {editW && (
         <EditWeightModal clientId={clientId} log={editW} onClose={() => setEditW(null)} onSaved={async () => { setEditW(null); await refresh() }} />
       )}
+      {editS && (
+        <EditStepModal log={editS} onClose={() => setEditS(null)} onSaved={async () => { setEditS(null); await refresh() }} />
+      )}
     </div>
+  )
+}
+
+// ---------- Modal: registrar media de pasos ----------
+function StepModal({ clientId, last, onClose, onSaved }: { clientId: string; last: number | null; onClose: () => void; onSaved: () => Promise<void>; }) {
+  const [value, setValue] = useState(last != null ? String(last) : '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const n = Math.round(parseFloat(value.replace(/[.\s]/g, '').replace(',', '.')))
+    if (!isFinite(n) || n <= 0) {
+      setErr('Escribe un número de pasos válido.')
+      return
+    }
+    setBusy(true)
+    try {
+      await addStep(clientId, n)
+      await onSaved()
+      onClose()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Registrar media de pasos" onClose={onClose}>
+      <div style={{ fontSize: 12, color: mut(0.5), marginBottom: 12, lineHeight: 1.5 }}>
+        Apunta tu <b>media de pasos al día</b> de la última semana (la que te marca el móvil o el reloj).
+      </div>
+      <NumberField label="Pasos por día" value={value} onChange={setValue} placeholder="8500" autoFocus />
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button style={{ ...primaryBtn, marginTop: 16, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={save}>
+        {busy ? 'Guardando…' : 'Guardar'}
+      </button>
+    </Modal>
+  )
+}
+
+// ---------- Modal: editar registro de pasos ----------
+function EditStepModal({ log, onClose, onSaved }: { log: StepLog; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [value, setValue] = useState(String(Number(log.steps)))
+  const [date, setDate] = useState(log.log_date.slice(0, 10))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const n = Math.round(parseFloat(value.replace(/[.\s]/g, '').replace(',', '.')))
+    if (!isFinite(n) || n <= 0) return setErr('Escribe un número de pasos válido.')
+    setBusy(true)
+    try {
+      await updateStep(log.id, n, date || undefined)
+      await onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Editar media de pasos" onClose={onClose}>
+      <NumberField label="Pasos por día" value={value} onChange={setValue} autoFocus />
+      <label style={{ display: 'block', marginTop: 10 }}>
+        <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Fecha</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%', background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '11px 12px', color: colors.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' }} />
+      </label>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button style={{ ...primaryBtn, marginTop: 16, opacity: busy ? 0.6 : 1 }} disabled={busy} onClick={save}>
+        {busy ? 'Guardando…' : 'Guardar cambios'}
+      </button>
+    </Modal>
   )
 }
 

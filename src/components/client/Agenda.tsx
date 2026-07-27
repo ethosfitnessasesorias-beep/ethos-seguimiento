@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { addHabitOccurrences, deleteEvent, EVENT_ORDER, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, todayStr, type CalEvent, type EventType, type FormLink, type MetricAction } from '../../lib/events'
+import { addHabitOccurrences, deleteEvent, EVENT_TYPES, isoAddDays, listEvents, setEventCompleted, setEventNote, todayStr, type CalEvent, type EventType, type FormLink, type MetricAction } from '../../lib/events'
 import Modal from '../Modal'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -129,16 +129,6 @@ export default function Agenda({ clientId, onOpenForm, onOpenMetric, onOpenWhats
         <button onClick={goToday} style={{ fontSize: 12, fontWeight: 600, background: colors.accent, color: '#fff', border: 'none', borderRadius: 9, padding: '7px 13px', cursor: 'pointer' }}>
           Hoy
         </button>
-      </div>
-
-      {/* legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 14 }}>
-        {EVENT_ORDER.map((k) => (
-          <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: mut(0.65) }}>
-            <span style={{ width: 9, height: 9, borderRadius: 3, background: EVENT_TYPES[k].color }} />
-            {EVENT_TYPES[k].label}
-          </span>
-        ))}
       </div>
 
       {/* grid */}

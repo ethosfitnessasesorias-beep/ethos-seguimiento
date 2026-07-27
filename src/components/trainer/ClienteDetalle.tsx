@@ -3,22 +3,27 @@ import { colors, mut } from '../../theme'
 import {
   addPerimeters,
   addWeight,
+  addStep,
   deleteClientPermanently,
   deletePerimeter,
   deleteWeight,
+  deleteStep,
   updatePerimeter,
   updateWeight,
+  updateStep,
   getProfile,
   listPerimeters,
   listWeights,
+  listSteps,
   setClientStatus,
   updateProfile,
   PERIMETER_FIELDS,
   type PerimeterLog,
   type Profile,
   type WeightLog,
+  type StepLog,
 } from '../../lib/db'
-import { changeColor, fullDate, METRIC_OPTIONS, perimeterRows, perimeterSeries, weeklyWeightChanges, weightSeries } from '../../lib/metrics'
+import { changeColor, fullDate, METRIC_OPTIONS, perimeterRows, perimeterSeries, weeklyWeightChanges, weightSeries, stepsSeries } from '../../lib/metrics'
 import { getAdherenceStats, type AdherenceStats } from '../../lib/events'
 import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, deleteSubmission, type FormSubmission } from '../../lib/forms'
@@ -62,6 +67,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [weights, setWeights] = useState<WeightLog[]>([])
   const [perims, setPerims] = useState<PerimeterLog[]>([])
+  const [steps, setSteps] = useState<StepLog[]>([])
   const [stats, setStats] = useState<AdherenceStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -69,12 +75,13 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
 
   const load = () => {
     setLoading(true)
-    Promise.all([getProfile(clientId), listWeights(clientId), listPerimeters(clientId), getAdherenceStats(clientId)])
-      .then(([p, w, pr, st]) => {
+    Promise.all([getProfile(clientId), listWeights(clientId), listPerimeters(clientId), getAdherenceStats(clientId), listSteps(clientId)])
+      .then(([p, w, pr, st, s]) => {
         setProfile(p)
         setWeights(w)
         setPerims(pr)
         setStats(st)
+        setSteps(s)
       })
       .finally(() => setLoading(false))
   }
@@ -175,7 +182,7 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       {loading ? (
         <div style={{ fontSize: 13, color: mut(0.4), padding: 20 }}>Cargando datos del cliente…</div>
       ) : tTab === 'evolucion' ? (
-        <Evolucion weights={weights} perims={perims} target={target} profile={profile} onChanged={load} />
+        <Evolucion weights={weights} perims={perims} steps={steps} target={target} profile={profile} onChanged={load} />
       ) : tTab === 'fotos' ? (
         <div style={{ ...card, padding: 22 }}>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Control fotográfico</div>
@@ -411,10 +418,10 @@ function HeaderStat({ label, value, color }: { label: string; value: string; col
   )
 }
 
-function Evolucion({ weights, perims, target, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; target: number | null; profile: Profile | null; onChanged: () => void }) {
+function Evolucion({ weights, perims, steps, target, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; steps: StepLog[]; target: number | null; profile: Profile | null; onChanged: () => void }) {
   const [metric, setMetric] = useState('weight')
   const [showAll, setShowAll] = useState(false)
-  const [addModal, setAddModal] = useState<null | 'weight' | 'perim'>(null)
+  const [addModal, setAddModal] = useState<null | 'weight' | 'perim' | 'steps'>(null)
   const rows = perimeterRows(perims)
   const first = weights.length ? Number(weights[0].weight) : null
   const current = weights.length ? Number(weights[weights.length - 1].weight) : null
@@ -437,7 +444,9 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
     ? compSeries.map((c) => ({ date: c.date, value: c[metric as 'fatPct' | 'muscleKg' | 'boneKg'] }))
     : metric === 'weight'
       ? weightSeries(weights)
-      : perimeterSeries(perims, metric)
+      : metric === 'steps'
+        ? stepsSeries(steps)
+        : perimeterSeries(perims, metric)
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 16 }}>
@@ -468,6 +477,7 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
         <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
           <button onClick={() => setAddModal('weight')} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>+ Registrar peso</button>
           <button onClick={() => setAddModal('perim')} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>+ Registrar perímetros</button>
+          <button onClick={() => setAddModal('steps')} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>+ Registrar pasos</button>
         </div>
 
         <button
@@ -484,7 +494,7 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
                 <div style={{ fontSize: 17, fontWeight: 800 }}>Registro de datos métricos</div>
                 <button onClick={() => setShowAll(false)} style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 999, width: 34, height: 34, color: mut(0.7), cursor: 'pointer', fontSize: 16 }}>✕</button>
               </div>
-              <AllRecords weights={weights} perims={perims} profile={profile} onChanged={onChanged} />
+              <AllRecords weights={weights} perims={perims} steps={steps} profile={profile} onChanged={onChanged} />
             </div>
           </div>
         )}
@@ -494,6 +504,9 @@ function Evolucion({ weights, perims, target, profile, onChanged }: { weights: W
         )}
         {addModal === 'perim' && profile && (
           <TrainerPerimModal clientId={profile.id} onClose={() => setAddModal(null)} onSaved={() => { setAddModal(null); onChanged() }} />
+        )}
+        {addModal === 'steps' && profile && (
+          <TrainerStepModal clientId={profile.id} onClose={() => setAddModal(null)} onSaved={() => { setAddModal(null); onChanged() }} />
         )}
       </div>
 
@@ -631,9 +644,10 @@ function TrainerEditWeightModal({ clientId, log, onClose, onSaved }: { clientId:
 }
 
 // Tabla con TODOS los registros (peso, perímetros y composición) por fecha.
-function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; profile: Profile | null; onChanged: () => void }) {
+function AllRecords({ weights, perims, steps, profile, onChanged }: { weights: WeightLog[]; perims: PerimeterLog[]; steps: StepLog[]; profile: Profile | null; onChanged: () => void }) {
   const [editW, setEditW] = useState<WeightLog | null>(null)
   const [editP, setEditP] = useState<PerimeterLog | null>(null)
+  const [editS, setEditS] = useState<StepLog | null>(null)
   const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
 
   // Índices por fecha.
@@ -641,17 +655,20 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
   for (const w of weights) weightByDate.set(w.log_date, w)
   const perimByDate = new Map<string, PerimeterLog>()
   for (const p of perims) perimByDate.set(p.log_date, p)
+  const stepByDate = new Map<string, StepLog>()
+  for (const s of steps) stepByDate.set(s.log_date, s)
   const compByDate = new Map<string, (typeof comp)[number]>()
   for (const c of comp) compByDate.set(c.date, c)
 
   // Todas las fechas con datos, de la más reciente a la más antigua.
-  const dates = Array.from(new Set([...weights.map((w) => w.log_date), ...perims.map((p) => p.log_date)])).sort((a, b) => (a < b ? 1 : -1))
+  const dates = Array.from(new Set([...weights.map((w) => w.log_date), ...perims.map((p) => p.log_date), ...steps.map((s) => s.log_date)])).sort((a, b) => (a < b ? 1 : -1))
 
   if (dates.length === 0) return <div style={{ fontSize: 12.5, color: mut(0.4), marginTop: 12 }}>Sin registros todavía.</div>
 
-  interface RowDef { key: string; label: string; get: (d: string) => number | null; edit?: boolean; perim?: boolean }
+  interface RowDef { key: string; label: string; get: (d: string) => number | null; edit?: boolean; perim?: boolean; step?: boolean }
   const rows: RowDef[] = [
     { key: 'weight', label: 'Peso corporal (kg)', get: (d) => (weightByDate.get(d) ? Number(weightByDate.get(d)!.weight) : null), edit: true },
+    { key: 'steps', label: 'Pasos (media/día)', get: (d) => (stepByDate.get(d) ? Number(stepByDate.get(d)!.steps) : null), step: true },
     { key: 'fat', label: 'Grasa corporal (%)', get: (d) => compByDate.get(d)?.fatPct ?? null },
     { key: 'muscle', label: 'Músculo (kg)', get: (d) => compByDate.get(d)?.muscleKg ?? null },
     ...PERIMETER_FIELDS.map((f) => ({ key: f.key, label: `${f.label} (cm)`, get: (d: string) => (perimByDate.get(d)?.[f.key] as number | null) ?? null, perim: true })),
@@ -671,8 +688,10 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
     if (!profile || !confirm(`¿Eliminar todos los datos del ${fullDate(d)}?`)) return
     const w = weightByDate.get(d)
     const p = perimByDate.get(d)
+    const s = stepByDate.get(d)
     if (w) await deleteWeight(w.id, profile.id)
     if (p) await deletePerimeter(p.id)
+    if (s) await deleteStep(s.id)
     onChanged()
   }
 
@@ -707,7 +726,8 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
                     const v = row.get(d)
                     const wLog = weightByDate.get(d)
                     const pLog = perimByDate.get(d)
-                    const onEdit = row.edit && wLog ? () => setEditW(wLog) : row.perim && pLog ? () => setEditP(pLog) : undefined
+                    const sLog = stepByDate.get(d)
+                    const onEdit = row.edit && wLog ? () => setEditW(wLog) : row.perim && pLog ? () => setEditP(pLog) : row.step && sLog ? () => setEditS(sLog) : undefined
                     return (
                       <td
                         key={d}
@@ -726,7 +746,7 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
         </table>
       </div>
       <div style={{ fontSize: 10.5, color: mut(0.35), marginTop: 8, lineHeight: 1.5 }}>
-        Desliza en horizontal para ver más fechas. Toca un valor de <b>peso</b> o <b>perímetro</b> para editarlo. 🗑 elimina todos los datos de esa fecha. Verde = sube · rojo = baja.
+        Desliza en horizontal para ver más fechas. Toca un valor de <b>peso</b>, <b>pasos</b> o <b>perímetro</b> para editarlo. 🗑 elimina todos los datos de esa fecha. Verde = sube · rojo = baja.
       </div>
 
       {editW && profile && (
@@ -734,6 +754,9 @@ function AllRecords({ weights, perims, profile, onChanged }: { weights: WeightLo
       )}
       {editP && (
         <TrainerEditPerimModal log={editP} onClose={() => setEditP(null)} onSaved={() => { setEditP(null); onChanged() }} />
+      )}
+      {editS && (
+        <TrainerEditStepModal log={editS} onClose={() => setEditS(null)} onSaved={() => { setEditS(null); onChanged() }} />
       )}
     </div>
   )
@@ -1001,6 +1024,82 @@ function GiftsManager({ profile }: { profile: Profile }) {
 }
 
 // ---------- Modales: el entrenador registra métricas del cliente ----------
+function TrainerStepModal({ clientId, onClose, onSaved }: { clientId: string; onClose: () => void; onSaved: () => void }) {
+  const [value, setValue] = useState('')
+  const [date, setDate] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const n = Math.round(parseFloat(value.replace(/[.\s]/g, '').replace(',', '.')))
+    if (!isFinite(n) || n <= 0) return setErr('Escribe un número de pasos válido.')
+    setBusy(true)
+    setErr(null)
+    try {
+      await addStep(clientId, n, date || undefined)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Registrar media de pasos" onClose={onClose}>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Pasos por día</span>
+        <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="numeric" placeholder="8500" style={fieldStyle} autoFocus />
+      </label>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Fecha (opcional, por defecto hoy)</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+      </label>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Guardando…' : 'Guardar'}
+      </button>
+    </Modal>
+  )
+}
+
+function TrainerEditStepModal({ log, onClose, onSaved }: { log: StepLog; onClose: () => void; onSaved: () => void }) {
+  const [value, setValue] = useState(String(Number(log.steps)))
+  const [date, setDate] = useState(log.log_date.slice(0, 10))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = async () => {
+    const n = Math.round(parseFloat(value.replace(/[.\s]/g, '').replace(',', '.')))
+    if (!isFinite(n) || n <= 0) return setErr('Escribe un número de pasos válido.')
+    setBusy(true)
+    setErr(null)
+    try {
+      await updateStep(log.id, n, date || undefined)
+      onSaved()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo guardar.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Editar media de pasos" onClose={onClose}>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Pasos por día</span>
+        <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="numeric" style={fieldStyle} autoFocus />
+      </label>
+      <label style={{ display: 'block' }}>
+        <span style={labelStyle}>Fecha</span>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+      </label>
+      {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+      <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        {busy ? 'Guardando…' : 'Guardar cambios'}
+      </button>
+    </Modal>
+  )
+}
+
 function TrainerWeightModal({ clientId, onClose, onSaved }: { clientId: string; onClose: () => void; onSaved: () => void }) {
   const [value, setValue] = useState('')
   const [date, setDate] = useState('')

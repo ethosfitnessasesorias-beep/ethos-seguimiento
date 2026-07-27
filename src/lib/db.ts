@@ -195,6 +195,46 @@ export async function deleteWeight(id: string, clientId: string) {
   await supabase.from('profiles').update({ current_weight: latest }).eq('id', clientId)
 }
 
+// ---- Pasos (promedio diario) ----
+export interface StepLog {
+  id: string
+  client_id: string
+  log_date: string
+  steps: number
+  created_at: string
+}
+
+export async function listSteps(clientId: string): Promise<StepLog[]> {
+  const { data, error } = await supabase
+    .from('step_logs')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('log_date', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function addStep(clientId: string, steps: number, logDate?: string) {
+  const { error } = await supabase.from('step_logs').insert({
+    client_id: clientId,
+    steps,
+    ...(logDate ? { log_date: logDate } : {}),
+  })
+  if (error) throw error
+}
+
+export async function updateStep(id: string, steps: number, logDate?: string) {
+  const patch: { steps: number; log_date?: string } = { steps }
+  if (logDate) patch.log_date = logDate
+  const { error } = await supabase.from('step_logs').update(patch).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteStep(id: string) {
+  const { error } = await supabase.from('step_logs').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ---- Perímetros ----
 export async function listPerimeters(clientId: string): Promise<PerimeterLog[]> {
   const { data, error } = await supabase

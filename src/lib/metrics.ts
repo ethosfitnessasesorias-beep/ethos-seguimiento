@@ -1,6 +1,6 @@
 import { colors } from '../theme'
 import { chart, type Chart } from './chart'
-import { PERIMETER_FIELDS, type PerimeterLog, type WeightLog } from './db'
+import { PERIMETER_FIELDS, type PerimeterLog, type StepLog, type WeightLog } from './db'
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -72,6 +72,17 @@ export function weightSeries(weights: WeightLog[]): SeriesPointDated[] {
   return weights.map((w) => ({ date: w.log_date, value: Number(w.weight), label: shortDate(w.log_date) }))
 }
 
+export function stepsSeries(steps: StepLog[]): SeriesPointDated[] {
+  return steps.map((s) => ({ date: s.log_date, value: Number(s.steps), label: shortDate(s.log_date) }))
+}
+
+/** Mini-gráfica de pasos para la tarjeta del cliente. */
+export function stepsChart(steps: StepLog[], w: number, h: number, top: number, bot: number): Chart | null {
+  if (steps.length < 2) return null
+  const series = steps.map((x) => ({ v: Number(x.steps), m: shortDate(x.log_date) }))
+  return chart(series, w, h, top, bot)
+}
+
 export function perimeterSeries(logs: PerimeterLog[], field: string): SeriesPointDated[] {
   return logs
     .filter((l) => (l[field as keyof PerimeterLog] as number | null) != null)
@@ -81,6 +92,7 @@ export function perimeterSeries(logs: PerimeterLog[], field: string): SeriesPoin
 /** Métricas seleccionables para las gráficas (peso + perímetros). */
 export const METRIC_OPTIONS: { key: string; label: string; unit: string; color: string }[] = [
   { key: 'weight', label: 'Peso', unit: 'kg', color: '#db1809' },
+  { key: 'steps', label: 'Pasos', unit: '/día', color: '#38bdf8' },
   { key: 'cuello', label: 'Cuello', unit: 'cm', color: '#2dd4bf' },
   { key: 'pecho', label: 'Pecho', unit: 'cm', color: '#a78bfa' },
   { key: 'cintura', label: 'Cintura', unit: 'cm', color: '#f5a623' },

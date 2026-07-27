@@ -692,3 +692,21 @@ create policy "trainer deletes forms" on public.form_submissions
 alter table public.custom_forms add column if not exists base_type text;
 create unique index if not exists custom_forms_base_type_uq
   on public.custom_forms (trainer_id, base_type) where base_type is not null;
+
+-- ============================================================
+--  v26 · Promedio de pasos diario (una media por fecha)
+-- ============================================================
+create table if not exists public.step_logs (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  log_date date not null default current_date,
+  steps int not null,
+  created_at timestamptz not null default now()
+);
+alter table public.step_logs enable row level security;
+drop policy if exists "client manages own steps" on public.step_logs;
+create policy "client manages own steps" on public.step_logs
+  for all using (client_id = auth.uid()) with check (client_id = auth.uid());
+drop policy if exists "trainer manages steps" on public.step_logs;
+create policy "trainer manages steps" on public.step_logs
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');

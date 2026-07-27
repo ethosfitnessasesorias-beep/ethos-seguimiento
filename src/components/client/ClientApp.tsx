@@ -36,7 +36,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
   const { refreshProfile } = useAuth()
   const [cTab, setCTab] = useState<ClientTab>('perfil')
   const [openFormType, setOpenFormType] = useState<FormLink | null>(null)
-  const [openMetricAction, setOpenMetricAction] = useState<'weight' | 'perim' | 'photo' | null>(null)
+  const [openMetricAction, setOpenMetricAction] = useState<'weight' | 'perim' | 'photo' | 'steps' | null>(null)
   const [messages, setMessages] = useState<NotificationItem[]>([])
   const [showNotif, setShowNotif] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -66,7 +66,7 @@ export default function ClientApp({ profile, onSignOut }: Props) {
     setCTab('formularios')
   }
 
-  const openMetric = (action: 'weight' | 'perim' | 'photo') => {
+  const openMetric = (action: 'weight' | 'perim' | 'photo' | 'steps') => {
     setOpenMetricAction(action)
     setCTab('metricas')
   }

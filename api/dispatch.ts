@@ -224,6 +224,7 @@ export default async function handler(req: Req, res: Res) {
     nutricion: 'rellenar tu registro nutricional',
     peso: 'registrar tu peso',
     perimetros: 'registrar tus perímetros',
+    pasos: 'registrar tu media de pasos',
     fotos: 'subir tus fotos de progreso',
     video: 'enviar tus vídeos al coach',
     comida: 'enviar la foto de tu comida',
