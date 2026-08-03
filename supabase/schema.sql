@@ -710,3 +710,21 @@ create policy "client manages own steps" on public.step_logs
 drop policy if exists "trainer manages steps" on public.step_logs;
 create policy "trainer manages steps" on public.step_logs
   for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+-- ============================================================
+--  v27 · Ofertas (Grand Slam) por cliente — SOLO el entrenador
+--  las ve y gestiona; el cliente no tiene acceso.
+-- ============================================================
+create table if not exists public.client_offers (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null,
+  notes text,
+  launched boolean not null default false,
+  launched_at date,
+  created_at timestamptz not null default now()
+);
+alter table public.client_offers enable row level security;
+drop policy if exists "trainer manages offers" on public.client_offers;
+create policy "trainer manages offers" on public.client_offers
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');

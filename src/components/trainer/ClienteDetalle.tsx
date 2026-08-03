@@ -31,6 +31,8 @@ import { downloadFormPdf } from '../../lib/formPdf'
 import MeasureGuide from '../MeasureGuide'
 import { getClientNote, saveClientNote } from '../../lib/notes'
 import { giftTimeline, listClaims, removeMilestoneClaim, setMilestoneDelivered, type GiftClaim } from '../../lib/gifts'
+import { addOffer, deleteOffer, listOffers, setOfferLaunched, setOfferNotes, type ClientOffer } from '../../lib/offers'
+import { addReminder } from '../../lib/reminders'
 import { generateClientReport } from '../../lib/report'
 import Modal from '../Modal'
 import MetricChart from '../MetricChart'
@@ -165,6 +167,9 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
 
       {/* regalos de fidelidad (gestión) */}
       {profile && <GiftsManager profile={profile} />}
+
+      {/* ofertas Grand Slam (el cliente no las ve) */}
+      {profile && <OffersManager profile={profile} />}
 
       {/* ficha del cliente */}
       {profile && <FichaCard p={profile} />}
@@ -1017,6 +1022,155 @@ function GiftsManager({ profile }: { profile: Profile }) {
               </div>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- Ofertas Grand Slam (solo entrenador; el cliente no las ve) ----------
+const QUICK_OFFERS = ['Grand Slam · mes 1-3', 'Grand Slam · mes 3-6', 'Grand Slam · fin de servicio', 'Oferta época señalada']
+
+// Meses completos desde una fecha ISO hasta hoy.
+function monthsSince(iso: string | null): number | null {
+  if (!iso) return null
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const now = new Date()
+  let months = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m)
+  if (now.getDate() < d) months -= 1
+  return Math.max(0, months)
+}
+
+function OffersManager({ profile }: { profile: Profile }) {
+  const [open, setOpen] = useState(false)
+  const [offers, setOffers] = useState<ClientOffer[]>([])
+  const [title, setTitle] = useState('')
+  const [notes, setNotes] = useState('')
+  const [remindDate, setRemindDate] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const load = () => {
+    listOffers(profile.id).then(setOffers).catch(() => {})
+  }
+  useEffect(load, [profile.id])
+
+  const months = monthsSince(profile.start_date)
+  const plan = (profile.plan || '').toLowerCase()
+  const hint = plan.includes('anual')
+    ? 'Plan anual → Grand Slam a los 3-6 meses o al finalizar el servicio.'
+    : plan.includes('trimes') || plan.includes('semes')
+      ? 'Plan trimestral/semestral → Grand Slam a los 1-3 meses (según su progreso).'
+      : 'Trimestral/semestral → GS al mes 1-3 · Anual → mes 3-6 o al finalizar · + épocas señaladas.'
+
+  const launched = offers.filter((o) => o.launched).length
+
+  const add = async () => {
+    if (!title.trim()) return
+    setBusy(true)
+    setMsg(null)
+    try {
+      await addOffer(profile.id, title, notes)
+      if (remindDate) {
+        await addReminder(profile.id, remindDate, `Lanzar oferta a ${profile.full_name || 'este cliente'}: ${title.trim()}`)
+        setMsg('Oferta guardada · aviso programado (te llegará por email ese día) ✓')
+      } else {
+        setMsg('Oferta guardada ✓')
+      }
+      setTitle('')
+      setNotes('')
+      setRemindDate('')
+      load()
+    } catch {
+      setMsg('No se pudo guardar la oferta.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleLaunched = async (o: ClientOffer) => {
+    try {
+      await setOfferLaunched(o.id, !o.launched)
+      load()
+    } catch {
+      /* recarga en la próxima */
+    }
+  }
+
+  const remove = async (o: ClientOffer) => {
+    if (!confirm(`¿Eliminar la oferta «${o.title}»?`)) return
+    await deleteOffer(o.id)
+    load()
+  }
+
+  const offerNoteInput: React.CSSProperties = { width: '100%', marginTop: 7, background: '#0e0e0e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 10px', color: colors.text, fontFamily: 'inherit', fontSize: 12, outline: 'none' }
+
+  return (
+    <div style={{ ...card, padding: '14px 20px', marginTop: 12 }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+        <span style={{ color: mut(0.4), fontSize: 12 }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: colors.text, flex: 1, textAlign: 'left' }}>🎯 Ofertas Grand Slam</span>
+        <span style={{ fontSize: 10.5, color: offers.length && launched < offers.length ? colors.amber : mut(0.4) }}>
+          {offers.length === 0 ? 'sin ofertas' : `${launched}/${offers.length} lanzadas`}
+          {months != null ? ` · lleva ${months} ${months === 1 ? 'mes' : 'meses'}` : ''}
+        </span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11.5, color: mut(0.5), background: colors.surface2, borderRadius: 9, padding: '8px 11px', lineHeight: 1.5, marginBottom: 10 }}>
+            💡 {hint} El cliente <b>no ve</b> esta sección.
+          </div>
+
+          {/* ofertas existentes */}
+          {offers.map((o) => (
+            <div key={o.id} style={{ padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                  onClick={() => toggleLaunched(o)}
+                  title={o.launched ? 'Marcar como no lanzada' : 'Marcar como lanzada'}
+                  style={{ width: 21, height: 21, flex: 'none', borderRadius: 6, border: `1.5px solid ${o.launched ? colors.green : 'rgba(255,255,255,0.25)'}`, background: o.launched ? colors.green : 'transparent', color: '#062', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, padding: 0 }}
+                >
+                  {o.launched ? '✓' : ''}
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: o.launched ? mut(0.55) : colors.text }}>{o.title}</div>
+                  <div style={{ fontSize: 10.5, color: o.launched ? colors.green : colors.amber, marginTop: 1 }}>
+                    {o.launched ? `Lanzada el ${o.launched_at ?? ''}` : 'Pendiente de lanzar'}
+                  </div>
+                </div>
+                <button onClick={() => remove(o)} title="Eliminar oferta" style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>✕</button>
+              </div>
+              <input
+                defaultValue={o.notes ?? ''}
+                onBlur={(e) => setOfferNotes(o.id, e.target.value).then(load).catch(() => {})}
+                placeholder="¿Qué se le ha propuesto exactamente? (oferta, precio, condiciones…)"
+                style={offerNoteInput}
+              />
+            </div>
+          ))}
+
+          {/* añadir oferta */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+              {QUICK_OFFERS.map((q) => (
+                <button key={q} onClick={() => setTitle(q)} style={{ background: title === q ? 'rgba(219,24,9,0.16)' : colors.surface2, color: title === q ? colors.text : mut(0.55), border: `1px solid ${title === q ? 'rgba(219,24,9,0.5)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 999, padding: '5px 11px', fontFamily: 'inherit', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                  {q}
+                </button>
+              ))}
+            </div>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre de la oferta (ej: Grand Slam mes 3 · upgrade anual)" style={{ ...offerNoteInput, marginTop: 0 }} />
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notas: qué le vas a proponer (opcional)" style={offerNoteInput} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: mut(0.55) }}>
+                Avisarme el
+                <input type="date" value={remindDate} onChange={(e) => setRemindDate(e.target.value)} style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 9px', color: colors.text, fontFamily: 'inherit', fontSize: 12, outline: 'none' }} />
+              </label>
+              <button onClick={add} disabled={busy || !title.trim()} style={{ marginLeft: 'auto', background: colors.accent, color: '#fff', border: 'none', borderRadius: 9, padding: '8px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: busy || !title.trim() ? 0.5 : 1 }}>
+                + Añadir oferta
+              </button>
+            </div>
+            {msg && <div style={{ fontSize: 11.5, color: msg.includes('✓') ? colors.green : '#f5a99f', marginTop: 8 }}>{msg}</div>}
+          </div>
         </div>
       )}
     </div>
