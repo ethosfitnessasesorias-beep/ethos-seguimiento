@@ -17,6 +17,7 @@ import {
   listSteps,
   setClientStatus,
   updateProfile,
+  whatsappLink,
   PERIMETER_FIELDS,
   type PerimeterLog,
   type Profile,
@@ -30,7 +31,7 @@ import { listSubmissions, setReviewed, deleteSubmission, type FormSubmission } f
 import { downloadFormPdf } from '../../lib/formPdf'
 import MeasureGuide from '../MeasureGuide'
 import { getClientNote, saveClientNote } from '../../lib/notes'
-import { giftTimeline, listClaims, removeMilestoneClaim, setMilestoneDelivered, type GiftClaim } from '../../lib/gifts'
+import { giftTimeline, listClaims, removeMilestoneClaim, setMilestoneDelivered, type GiftClaim, type Milestone } from '../../lib/gifts'
 import { addOffer, deleteOffer, listOffers, setOfferLaunched, setOfferNotes, type ClientOffer } from '../../lib/offers'
 import { addReminder } from '../../lib/reminders'
 import { generateClientReport } from '../../lib/report'
@@ -261,6 +262,14 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
     setErr(null)
     try {
       await setClientStatus(profile.id, active ? 'inactive' : 'active')
+      // Al dar de baja, abre WhatsApp con el mensaje de despedida ya escrito
+      // (con las peticiones de reseña). Solo queda pulsar enviar.
+      if (active) {
+        const first = profile.full_name?.split(' ')[0] || 'Hola'
+        const farewell = `${first} lamento mucho que no podamos seguir trabajando juntos, recuerda seguir aplicando todo lo aprendido y sigue cuidándote como ya sabes hacerlo, si en un futuro vuelves a necesitar una mano, aquí estaré para lo que haga falta. Como tarea final, te agradecería muchísimo si nos dejaras una reseñita en trust pilot: https://www.trustpilot.com/review/ethosfitness.es y en google maps: https://g.page/r/CcAVSxAhkVsUEBM/review Esto nos ayuda enormemente a seguir creciendo y pudiendo ayudar a más personas.`
+        const link = whatsappLink(profile.phone, farewell)
+        if (link) window.open(link, '_blank')
+      }
       onChanged()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo cambiar el estado.')
@@ -977,7 +986,7 @@ function GiftsManager({ profile }: { profile: Profile }) {
 
   const steps = giftTimeline(startISO, claims)
 
-  const toggle = async (key: 'welcome' | '6m' | '12m', delivered: boolean) => {
+  const toggle = async (key: Milestone, delivered: boolean) => {
     setBusy(true)
     try {
       if (delivered) await setMilestoneDelivered(profile.id, key)
@@ -1357,6 +1366,9 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
     city: profile.city ?? '',
     start_date: profile.start_date ?? '',
     birth_date: profile.birth_date ?? '',
+    pay_amount: profile.pay_amount != null ? String(profile.pay_amount) : '',
+    pay_every_months: profile.pay_every_months != null ? String(profile.pay_every_months) : '',
+    pay_next_date: profile.pay_next_date ?? '',
     injuries: profile.injuries ?? '',
     pathologies: profile.pathologies ?? '',
     main_goal: profile.main_goal ?? '',
@@ -1387,6 +1399,9 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
         city: txt(f.city),
         start_date: txt(f.start_date),
         birth_date: txt(f.birth_date),
+        pay_amount: num(f.pay_amount),
+        pay_every_months: num(f.pay_every_months),
+        pay_next_date: txt(f.pay_next_date),
         injuries: txt(f.injuries),
         pathologies: txt(f.pathologies),
         main_goal: txt(f.main_goal),
@@ -1435,6 +1450,18 @@ function EditClientModal({ profile, onClose, onSaved }: { profile: Profile; onCl
           </label>
         </div>
         <span style={{ fontSize: 10.5, color: mut(0.4), display: 'block', marginTop: 4 }}>La fecha de inicio calcula los regalos y el aniversario; la de nacimiento, el mensaje de cumpleaños.</span>
+
+        <div style={{ fontSize: 12, fontWeight: 700, margin: '14px 0 6px' }}>💶 Cobro</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <Field label="Importe (€)" value={f.pay_amount} onChange={set('pay_amount')} placeholder="150" />
+          <Field label="Cada (meses)" value={f.pay_every_months} onChange={set('pay_every_months')} placeholder="1" />
+          <label style={{ display: 'block' }}>
+            <span style={labelStyle}>Próximo cobro</span>
+            <input type="date" value={f.pay_next_date.slice(0, 10)} onChange={(e) => set('pay_next_date')(e.target.value)} style={fieldStyle} />
+          </label>
+        </div>
+        <span style={{ fontSize: 10.5, color: mut(0.4), display: 'block', marginTop: 4 }}>Aparece en Resumen → «Próximos cobros». Al marcar «Cobrado ✓» pasa solo a la siguiente fecha.</span>
+
         <Area label="Lesiones" value={f.injuries} onChange={set('injuries')} />
         <Area label="Patologías y alergias" value={f.pathologies} onChange={set('pathologies')} />
         <Area label="Objetivo principal" value={f.main_goal} onChange={set('main_goal')} />

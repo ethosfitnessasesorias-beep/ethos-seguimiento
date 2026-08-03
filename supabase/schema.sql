@@ -728,3 +728,14 @@ alter table public.client_offers enable row level security;
 drop policy if exists "trainer manages offers" on public.client_offers;
 create policy "trainer manages offers" on public.client_offers
   for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+-- ============================================================
+--  v28 · Cobros por cliente, valoración física mensual y
+--  automatizaciones (analítica 6 meses, reseñas a los 2 meses)
+-- ============================================================
+alter table public.profiles add column if not exists pay_amount numeric;          -- importe del cobro (€)
+alter table public.profiles add column if not exists pay_every_months int;        -- cada cuántos meses
+alter table public.profiles add column if not exists pay_next_date date;          -- próximo cobro
+alter table public.profiles add column if not exists last_physique_review date;   -- última valoración de cambio físico
+alter table public.profiles add column if not exists last_analitica text;         -- último aviso de analítica enviado (ISO)
+alter table public.profiles add column if not exists review_asked text;           -- fecha en que se pidió reseña (ISO)

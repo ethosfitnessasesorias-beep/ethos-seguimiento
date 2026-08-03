@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { listClients, type Profile } from '../../lib/db'
+import { listClients, markClientPaid, updateProfile, type Profile } from '../../lib/db'
 import { computeAtRisk, getLastWeightDates, getUnreviewedForms, getUpcomingEvents, type RiskClient, type UnreviewedForm, type UpcomingEvent } from '../../lib/dashboard'
-import { EVENT_TYPES, type EventType } from '../../lib/events'
+import { EVENT_TYPES, todayStr, type EventType } from '../../lib/events'
 import { listPendingClaims, markGiftDelivered, milestoneLabel, type PendingClaim } from '../../lib/gifts'
+import { listUpcomingReminders, type UpcomingReminder } from '../../lib/reminders'
 import type { TrainerTab } from './TrainerApp'
 
 const card: React.CSSProperties = { background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }
@@ -20,6 +21,7 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
   const [events, setEvents] = useState<UpcomingEvent[]>([])
   const [gifts, setGifts] = useState<PendingClaim[]>([])
   const [risk, setRisk] = useState<RiskClient[]>([])
+  const [reminders, setReminders] = useState<UpcomingReminder[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -28,16 +30,18 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
       const cs = await listClients()
       setClients(cs)
       const ids = cs.map((c) => c.id)
-      const [f, e, g, lw] = await Promise.all([
+      const [f, e, g, lw, rem] = await Promise.all([
         getUnreviewedForms(ids),
         getUpcomingEvents(ids),
         listPendingClaims(),
         getLastWeightDates(ids),
+        listUpcomingReminders().catch(() => []),
       ])
       setForms(f)
       setEvents(e)
       setGifts(g.filter((x) => ids.includes(x.client_id)))
       setRisk(computeAtRisk(cs, lw))
+      setReminders(rem)
     } finally {
       setLoading(false)
     }
@@ -52,6 +56,29 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
   }, [clients])
 
   const avgAdh = clients.length ? Math.round(clients.reduce((s, c) => s + (c.adherence ?? 0), 0) / clients.length) : 0
+
+  // Próximos cobros: clientes con fecha de cobro apuntada, del más cercano al más lejano.
+  const today = todayStr()
+  const cobros = clients
+    .filter((c) => c.pay_next_date)
+    .sort((a, b) => ((a.pay_next_date as string) < (b.pay_next_date as string) ? -1 : 1))
+
+  // Valorar cambio físico: clientes sin valoración en los últimos 30 días.
+  const cutoff = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const toReview = clients.filter((c) => !c.last_physique_review || c.last_physique_review <= cutoff)
+
+  const markPaid = async (c: Profile) => {
+    await markClientPaid(c)
+    load()
+  }
+  const markReviewed = async (c: Profile) => {
+    await updateProfile(c.id, { last_physique_review: today })
+    load()
+  }
 
   return (
     <div>
@@ -152,6 +179,80 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
               </div>
             </div>
           )}
+
+          {/* próximos cobros */}
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>💶 Próximos cobros</div>
+            <div style={{ fontSize: 11.5, color: mut(0.5), marginBottom: 14 }}>Se apuntan en «Editar ficha» de cada cliente.</div>
+            {cobros.length === 0 ? (
+              <Empty>Ningún cobro apuntado.</Empty>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {cobros.map((c) => {
+                  const overdue = (c.pay_next_date as string) <= today
+                  return (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{c.full_name || 'Cliente'}</div>
+                        <div style={{ fontSize: 11, color: overdue ? colors.amber : mut(0.45), marginTop: 1 }}>
+                          {c.pay_next_date}{overdue ? ' · ¡toca cobrar!' : ''}{c.pay_every_months ? ` · cada ${c.pay_every_months} ${c.pay_every_months === 1 ? 'mes' : 'meses'}` : ''}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 13.5, fontWeight: 700, color: overdue ? colors.amber : colors.text }}>{c.pay_amount != null ? `${c.pay_amount} €` : '—'}</span>
+                      <button onClick={() => markPaid(c)} title="Marcar cobrado (pasa a la siguiente fecha)" style={{ ...linkBtn, color: colors.green }}>Cobrado ✓</button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* próximos avisos (planis, vacaciones, ofertas…) */}
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>🗓 Próximos avisos</div>
+            <div style={{ fontSize: 11.5, color: mut(0.5), marginBottom: 14 }}>Tus notas privadas de agenda (planis, ofertas…). Te llegan también por email.</div>
+            {reminders.length === 0 ? (
+              <Empty>Sin avisos programados.</Empty>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {reminders.map((r) => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: colors.accent, flex: 'none', width: 44 }}>{r.remind_date.slice(5)}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {r.client_name && <div style={{ fontSize: 12.5, fontWeight: 600 }}>{r.client_name}</div>}
+                      <div style={{ fontSize: 11.5, color: mut(0.55), lineHeight: 1.4 }}>{r.body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* valorar cambio físico (mensual) */}
+          <div style={{ ...card, padding: 20 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>📸 Valorar cambio físico</div>
+            <div style={{ fontSize: 11.5, color: mut(0.5), marginBottom: 14 }}>Clientes sin valorar en los últimos 30 días. Compara sus fotos y plantéate subirlo a redes.</div>
+            {loading ? (
+              <Empty>Cargando…</Empty>
+            ) : toReview.length === 0 ? (
+              <Empty>Todos valorados este mes 🎉</Empty>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {toReview.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{c.full_name || 'Cliente'}</div>
+                      <div style={{ fontSize: 11, color: mut(0.45), marginTop: 1 }}>
+                        {c.last_physique_review ? `última valoración: ${c.last_physique_review}` : 'nunca valorado'}
+                      </div>
+                    </div>
+                    <button onClick={() => onOpenClient(c.id, 'fotos')} style={linkBtn}>Ver fotos ›</button>
+                    <button onClick={() => markReviewed(c)} title="Marcar como valorado este mes" style={{ ...linkBtn, color: colors.green }}>Hecho ✓</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* próximos eventos */}
           <div style={{ ...card, padding: 20 }}>

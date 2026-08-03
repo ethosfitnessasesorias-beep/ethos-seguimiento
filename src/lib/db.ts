@@ -30,6 +30,10 @@ export interface Profile {
   deactivated_at: string | null
   start_date: string | null // fecha real de alta (para los regalos)
   birth_date: string | null
+  pay_amount: number | null // importe del cobro (€)
+  pay_every_months: number | null // cada cuántos meses se cobra
+  pay_next_date: string | null // fecha del próximo cobro
+  last_physique_review: string | null // última valoración de cambio físico
   created_at: string
 }
 
@@ -118,6 +122,21 @@ export function whatsappLink(phone: string | null | undefined, text?: string): s
   if (digits.length === 9) digits = '34' + digits
   const base = `https://wa.me/${digits}`
   return text ? `${base}?text=${encodeURIComponent(text)}` : base
+}
+
+// Suma meses a una fecha ISO (para el ciclo de cobros).
+export function isoAddMonths(iso: string, months: number): string {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setMonth(dt.getMonth() + months)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+
+// Marca el cobro como hecho: pasa la fecha al siguiente ciclo (o la limpia si es un cobro único).
+export async function markClientPaid(c: Profile): Promise<void> {
+  if (!c.pay_next_date) return
+  const next = c.pay_every_months ? isoAddMonths(c.pay_next_date, c.pay_every_months) : null
+  await updateProfile(c.id, { pay_next_date: next })
 }
 
 // Da de baja / reactiva a un cliente sin borrar sus datos.

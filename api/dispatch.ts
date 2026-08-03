@@ -287,7 +287,8 @@ export default async function handler(req: Req, res: Res) {
     }
   }
 
-  // 5) Cumpleaños y aniversarios (cada 3 meses). Se envían una vez, por la mañana.
+  // 5) Cumpleaños, temporalidades (textos por hito), reseñas a los 2 meses y
+  //    aviso de analítica al entrenador cada 6 meses. Se envían una vez, por la mañana.
   let greetings = 0
   const monthsBetween = (a: string, b: string): number => {
     const [ay, am, ad] = a.split('-').map(Number)
@@ -305,6 +306,19 @@ export default async function handler(req: Req, res: Res) {
       greetings++
     }
   }
+  // Textos del entrenador para cada hito de permanencia (meses exactos).
+  const ANNIV_TEXTS: Record<number, string> = {
+    3: '{nombre} hoy hace 3 meses desde que te pusiste en mis manos. Quería darte las gracias por depositar tu confianza en mí estos 3 meses y que pienses en lo que llevamos y en lo que nos queda por conseguir, que no es poco, ¡Vamos a tope!',
+    6: '{nombre} hoy hace medio año desde que nos hallamos juntos en el camino, 6 meses codo con codo, parece mentira... Nada, simplemente quería darte las gracias una vez más por depositar tu confianza en mí y toca seguir remando los dos hacia un mismo destino. ¡A seguir! Te espera un regalito <3',
+    9: '{nombre} hoy hace 9 meses desde que surcamos juntos esta odisea, 3/4 de año mano a mano, parece mentira... Queda nada para el año, a ver si lo conseguimos. Volver a darte las gracias una vez más por depositar tu confianza en mí y toca seguir más fuerte que nunca.',
+    12: '{nombre} madre mía quién lo iba a decir, hoy hace 1 año que nos embarcamos juntos en esta aventura, 365 días, parece mentira, lo que hemos conseguido es algo digno de admirar, que orgulloso estoy de lo que hemos construido. Por último me gustaría volver a agradecerte la confianza que depositas en mí, de corazón, gracias. Por eso te tengo preparada una sorpresa, un premio por tu fidelidad.',
+    18: '{nombre} otros 6 meses más juntos... Exactamente hoy hace 1 año y 6 meses desde que te pusiste en mis manos. Quería darte las gracias por seguir confiando en mí. Te espera un regalito <3',
+    24: '{nombre} que absoluta barbaridad, ya hace 2 años que nos embarcamos juntos en esta aventura, 730 días, parece mentira, lo que hemos conseguido es algo digno de admirar, que orgulloso estoy de lo que hemos construido. Por último me gustaría volver a agradecerte la confianza que depositas en mí, de corazón, gracias. ¡Por lo que llevamos y por lo que queda por venir!. Te espera un regalito <3.',
+    30: '{nombre} dos años y medio ya caminando juntos... 30 meses, se dice pronto. Quería darte las gracias una vez más por seguir confiando en mí después de todo este tiempo, pocas cosas me hacen tanta ilusión. ¡A seguir sumando! Te espera un regalito <3',
+    36: '{nombre} 3 AÑOS. Tres años enteros construyendo esto juntos, 1095 días, es una absoluta locura y un orgullo enorme. Gracias de corazón por confiar en mí un año más; lo que hemos conseguido juntos no lo consigue cualquiera. ¡Por muchos más! Te espera un regalito <3',
+  }
+  const REVIEW_TEXT =
+    '{nombre} ya llevamos 2 meses trabajando juntos 💪 Quería pedirte un pequeño favor: si estás contento con cómo va todo, nos ayudaría muchísimo que nos dejaras una reseñita en Trustpilot: https://www.trustpilot.com/review/ethosfitness.es y en Google Maps: https://g.page/r/CcAVSxAhkVsUEBM/review — Esto nos ayuda enormemente a seguir creciendo y poder ayudar a más personas. ¡Mil gracias de corazón!'
   if (hhmm >= '10:00') {
     const curYear = Number(today.slice(0, 4))
     const todayMD = today.slice(5)
@@ -312,8 +326,11 @@ export default async function handler(req: Req, res: Res) {
     const todayDay = Number(today.slice(8, 10))
     const { data: clients } = await supabase
       .from('profiles')
-      .select('id, birth_date, start_date, last_birthday, last_anniversary, status')
+      .select('id, full_name, trainer_id, birth_date, start_date, last_birthday, last_anniversary, last_analitica, review_asked, status')
       .eq('role', 'client')
+    // Emails de los entrenadores (para el aviso de analítica).
+    const { data: trainerRows } = await supabase.from('profiles').select('id, email').eq('role', 'trainer')
+    const trainerEmail = new Map((trainerRows ?? []).map((t) => [t.id as string, (t.email as string | null) ?? null]))
     for (const c of clients ?? []) {
       if (!withinBudget()) break
       if ((c.status ?? 'active') !== 'active') continue
@@ -324,13 +341,31 @@ export default async function handler(req: Req, res: Res) {
           const extra = months >= 1 ? ` Ya llevamos ${months} ${months === 1 ? 'mes' : 'meses'} trabajando juntos.` : ''
           await greet(c.id, `🎂 ¡Feliz cumpleaños, {nombre}!${extra} Gracias por confiar en ETHOS. ¡Que tengas un gran día! 🎉`, { last_birthday: curYear })
         }
-        // Aniversario cada 3 meses
         if (c.start_date) {
           const months = monthsBetween(c.start_date, today)
           const startDay = Number(c.start_date.slice(8, 10))
           const dayMatches = todayDay === Math.min(startDay, dim)
-          if (months > 0 && months % 3 === 0 && dayMatches && c.last_anniversary !== today) {
-            await greet(c.id, `🎉 {nombre}, ¡ya llevamos ${months} meses juntos! Estoy muy contento con tu compromiso y tu trabajo. ¡A por mucho más! 💪`, { last_anniversary: today })
+          // Temporalidades: solo en los hitos con texto definido (3, 6, 9, 12, 18, 24, 30, 36 meses).
+          const anniv = ANNIV_TEXTS[months]
+          if (anniv && dayMatches && c.last_anniversary !== today) {
+            await greet(c.id, anniv, { last_anniversary: today })
+          }
+          // Petición de reseñas a los 2 meses exactos (una sola vez).
+          if (months === 2 && dayMatches && !c.review_asked) {
+            await greet(c.id, REVIEW_TEXT, { review_asked: today })
+          }
+          // Analítica: email automático AL ENTRENADOR cada 6 meses de permanencia.
+          if (EMAIL_ENABLED && months > 0 && months % 6 === 0 && dayMatches && c.last_analitica !== today) {
+            const email = c.trainer_id ? trainerEmail.get(c.trainer_id) : null
+            if (email) {
+              await sendEmail(
+                email,
+                `ETHOS · Analítica de ${c.full_name || 'cliente'}`,
+                `A ${c.full_name || 'tu cliente'} le toca analítica: hoy cumple ${months} meses contigo.\n\n(Aviso automático cada 6 meses desde su fecha de inicio.)`,
+              )
+              await supabase.from('profiles').update({ last_analitica: today }).eq('id', c.id)
+              agenda++
+            }
           }
         }
       } catch (e) {

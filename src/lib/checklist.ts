@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-export type ChecklistKind = 'nuevo' | 'plani'
+export type ChecklistKind = 'nuevo' | 'plani' | 'seguimiento' | 'marcha'
 
 export async function getChecklist(clientId: string, kind: ChecklistKind): Promise<string[]> {
   const { data, error } = await supabase

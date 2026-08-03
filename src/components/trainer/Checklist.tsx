@@ -2,62 +2,92 @@ import { useCallback, useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import { getChecklist, setChecklist, type ChecklistKind } from '../../lib/checklist'
 import { whatsappLink } from '../../lib/db'
-import { addReminder } from '../../lib/reminders'
-import { isoAddDays } from '../../lib/events'
 import type { TrainerTab } from './TrainerApp'
 
 const card: React.CSSProperties = { background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }
 
-type Flag = 'wa' | 'docs' | 'forms' | 'evol' | 'remind6'
+type Flag = 'wa' | 'docs' | 'forms' | 'evol' | 'agenda'
 interface Step {
   key: string
   label: string
+  hint?: string
   sub?: { key: string; label: string }[]
   flag?: Flag
 }
 
+// Optimizados contra la app: las tareas que la app automatiza ya no aparecen
+// (contrato, temporalidades, cumpleaños, reseñas a los 2 meses, analítica cada
+// 6 meses, seguimiento de regalos…).
 const CLIENTE_NUEVO: Step[] = [
-  { key: 'pdf', label: 'Pasar PDF de bienvenida por WhatsApp', flag: 'wa' },
-  {
-    key: 'tareas',
-    label: 'Mandarle mensaje de tareas',
-    sub: [
-      { key: 'tareas.forms', label: 'Formulario de entrenamiento y nutrición' },
-      { key: 'tareas.link', label: 'Link para registrarse en la app' },
-      { key: 'tareas.movilidad', label: 'Tareas de valoración de movilidad' },
-      { key: 'tareas.tecnica', label: 'Aspectos técnicos y ejercicios' },
-      { key: 'tareas.nutri', label: 'Registro nutricional en la app' },
-      { key: 'tareas.pasos', label: 'Media de pasos semanal' },
-      { key: 'tareas.peso', label: 'Peso corporal de 7 días' },
-      { key: 'tareas.analitica', label: 'Analítica' },
-    ],
-  },
+  { key: 'bemad', label: 'Crear perfil en BemadBox (solo si es pago domiciliado)' },
+  { key: 'etiquetas', label: 'Poner etiquetas de WhatsApp' },
+  { key: 'invitar', label: 'Invitarlo a la app (Clientes → + Invitar). El contrato lo firma solo al entrar' },
+  { key: 'pdf', label: 'Enviar por WhatsApp: PDF de bienvenida (+ PDF grasa si viene por pérdida de grasa)', flag: 'wa' },
+  { key: 'video', label: 'Enviar vídeo de bienvenida por WhatsApp', flag: 'wa' },
+  { key: 'mensaje', label: 'Mensaje de bienvenida y siguientes pasos por WhatsApp', flag: 'wa' },
   { key: 'grupo', label: 'Meterlo en el grupo de WhatsApp' },
-  { key: 'crm', label: 'Añadir al CRM' },
-  { key: 'pago', label: 'Apuntar pago en la app de contabilidad' },
-  { key: 'regalo', label: 'Comprar y enviar regalo de bienvenida (Amazon)' },
-  { key: 'analitica6', label: 'Programar aviso de analítica a 6 meses', flag: 'remind6' },
-  {
-    key: 'claude',
-    label: 'Preparar proyecto de Claude',
-    sub: [
-      { key: 'claude.nuevo', label: 'Nuevo proyecto' },
-      { key: 'claude.prompt', label: 'Pegar prompt maestro' },
-      { key: 'claude.plantillas', label: 'Plantillas en contexto' },
-      { key: 'claude.forms', label: 'Añadir forms y contexto del paciente (plan nutri/deportivo)' },
-    ],
-  },
-  { key: 'drive', label: 'Crear carpeta en Drive (fotos lifestyle + diario de entreno)' },
-  { key: 'docs', label: 'Subir documentos y plani a la app', flag: 'docs' },
-  { key: 'mensaje', label: 'Mandar mensaje al cliente', flag: 'wa' },
+  { key: 'estudio', label: 'Aplicar el programa «Estudio Inicial» en su Agenda', hint: 'Biblioteca → Aplicar a cliente. Crea las tareas de peso 7 días, perímetros, fotos, nutrición, pasos y vídeos', flag: 'agenda' },
+  { key: 'analitica', label: 'Pedir analítica inicial y guardarla en Documentos', hint: 'El aviso de las siguientes es automático cada 6 meses (te llega email)', flag: 'docs' },
+  { key: 'cobro', label: 'Apuntar cobro en gestión de clientes', hint: 'Editar ficha → importe, cada cuántos meses y próxima fecha. Aparece en Resumen → Próximos cobros' },
+  { key: 'pago', label: 'Apuntar el pago en la app de contabilidad' },
+  { key: 'regalo', label: 'Comprar y enviar regalo de bienvenida (straps, shaker…)', hint: 'El seguimiento de entrega va solo en 🎁 Regalos' },
+  { key: 'gasto', label: 'Apuntar gasto del regalo en contabilidad' },
+  { key: 'drive', label: 'Crear carpeta en Drive: plantilla Diario de entrenamiento, lifestyle y planis', hint: 'Para que no se borre nada' },
+  { key: 'excel', label: 'Crear Excel de programación (datos iniciales + carpeta analíticas)' },
+  { key: 'forms', label: 'Revisar formularios, explicarle tu idea y fijar objetivos', hint: 'Apunta el plan en Notas privadas', flag: 'forms' },
+  { key: 'revision', label: '¿Revisión presencial? Si sí, agendarla', flag: 'agenda' },
+  { key: 'llamadas', label: 'Poner llamadas / revisiones / entrenos personales en su Agenda', flag: 'agenda' },
+  { key: 'canva', label: 'Cortar la plani general en Canva (según plan contratado)' },
+  { key: 'docs', label: 'Subir plani y documentos a la app (avisa solo al cliente)', flag: 'docs' },
+  { key: 'proxplani', label: 'Apuntar recordatorio privado de próxima plani (4-6 semanas)', hint: 'Agenda → Notas privadas con aviso. Sale en Resumen → Próximos avisos', flag: 'agenda' },
+  { key: 'loom', label: 'Vídeo Loom explicando la plani al entregarla' },
+  { key: 'historias', label: 'Pedirle que nos apoye subiendo historias' },
 ]
 
 const NUEVA_PLANI: Step[] = [
-  { key: 'cambio', label: 'Pedir rellenar el Formulario de Cambio de plani (o ir al resultado)', flag: 'forms' },
+  { key: 'reportes', label: 'Mirar reportes y formulario de cambio de plani en la app', hint: 'Pestaña Formularios · botón ↓ PDF para adjuntar a Claude', flag: 'forms' },
   { key: 'contexto', label: 'Adjuntar datos de contexto actual al proyecto de Claude' },
-  { key: 'docs', label: 'Subir los documentos a la app', flag: 'docs' },
-  { key: 'mensaje', label: 'Mandar mensaje al cliente', flag: 'wa' },
-  { key: 'cambio_fisico', label: 'Mostrar el cambio físico y de hábitos logrado', flag: 'evol' },
+  { key: 'roadmap', label: 'Road Map y contar series (Excel — si lo usas)' },
+  { key: 'canva', label: 'Canva: juntar plani en un solo documento (de plani 2 en adelante)' },
+  { key: 'docs', label: 'Subir nueva plani y dieta a la app (avisa solo al cliente)', flag: 'docs' },
+  { key: 'lista', label: 'Mandar lista de la compra (si tiene nutri) — Documentos', flag: 'docs' },
+  { key: 'programa', label: 'Actualizar el programa de eventos en su Agenda', flag: 'agenda' },
+  { key: 'proxplani', label: 'Apuntar recordatorio privado de la siguiente plani', hint: 'Agenda → Notas privadas. Sale en Resumen → Próximos avisos', flag: 'agenda' },
+  { key: 'evol', label: 'Enseñarle su cambio físico y los hábitos que ha logrado', flag: 'evol' },
+  { key: 'mensaje', label: 'Avisarle por WhatsApp de que tiene nueva plani', flag: 'wa' },
+]
+
+const SEGUIMIENTO: Step[] = [
+  { key: 'fisico', label: 'Valorar cambio físico y plantearte subirlo a redes', hint: 'Cada mes · también te avisa Resumen → Valorar cambio físico', flag: 'evol' },
+  { key: 'testimonio', label: 'Pedir testimonio escrito y en vídeo (cuando haya buen cambio)' },
+  { key: 'gs', label: 'Revisar ofertas Grand Slam pendientes', hint: '🎯 en la ficha del cliente · trimestral/semestral mes 1-3 · anual mes 3-6 o al final' },
+  { key: 'encuesta', label: 'Programar encuesta de satisfacción (al mes 1-3)', flag: 'agenda' },
+  { key: 'regalos', label: 'Entregar regalos de fidelidad reclamados', hint: 'Te aparecen en el Resumen · hitos automáticos hasta los 3 años' },
+  { key: 'analitica', label: 'Revisar analítica cuando llegue el aviso automático y guardarla', flag: 'docs' },
+]
+
+const MARCHA: Step[] = [
+  { key: 'encuesta', label: 'Programarle la encuesta de salida ANTES de dar la baja', hint: 'Después de la baja ya no puede entrar en la app', flag: 'forms' },
+  { key: 'baja', label: 'Dar de baja en la app', hint: 'Botón «Dar de baja» arriba: conserva su historial y abre WhatsApp con tu mensaje de despedida y reseñas' },
+  { key: 'bemad', label: 'Quitarlo de BemadBox' },
+  { key: 'grupo', label: 'Echarlo del grupo de WhatsApp' },
+  { key: 'etiquetas', label: 'Quitar etiquetas de WhatsApp' },
+  { key: 'contab', label: 'Marcarlo en contabilidad y CRM (formato de baja)' },
+  { key: 'canva', label: 'Mover a clientes antiguos en Canva' },
+  { key: 'pc', label: 'Quitar carpeta del PC (si queda algo fuera de la app)' },
+]
+
+const LISTS: Record<ChecklistKind, Step[]> = {
+  nuevo: CLIENTE_NUEVO,
+  plani: NUEVA_PLANI,
+  seguimiento: SEGUIMIENTO,
+  marcha: MARCHA,
+}
+const KIND_LABELS: [ChecklistKind, string][] = [
+  ['nuevo', 'Cliente nuevo'],
+  ['plani', 'Nueva plani'],
+  ['seguimiento', 'Seguimiento'],
+  ['marcha', 'Marcha'],
 ]
 
 interface Props {
@@ -68,9 +98,8 @@ interface Props {
 
 export default function Checklist({ clientId, clientPhone, goTab }: Props) {
   const [kind, setKind] = useState<ChecklistKind>('nuevo')
-  const steps = kind === 'nuevo' ? CLIENTE_NUEVO : NUEVA_PLANI
+  const steps = LISTS[kind]
   const [done, setDone] = useState<Set<string>>(new Set())
-  const [remindMsg, setRemindMsg] = useState<string | null>(null)
 
   const load = useCallback(() => {
     getChecklist(clientId, kind).then((d) => setDone(new Set(d))).catch(() => setDone(new Set()))
@@ -103,34 +132,22 @@ export default function Checklist({ clientId, clientPhone, goTab }: Props) {
     if (flag === 'docs') return <button onClick={() => goTab('documentos')} style={miniBtn(colors.surface2, colors.text)}>Ir a Documentos</button>
     if (flag === 'forms') return <button onClick={() => goTab('formularios')} style={miniBtn(colors.surface2, colors.text)}>Ver formularios</button>
     if (flag === 'evol') return <button onClick={() => goTab('evolucion')} style={miniBtn(colors.surface2, colors.text)}>Ver evolución</button>
-    if (flag === 'remind6') {
-      return (
-        <button
-          onClick={async () => {
-            try {
-              await addReminder(clientId, isoAddDays(new Date().toISOString().slice(0, 10), 182), 'Toca analítica del cliente (cada 6 meses).')
-              setRemindMsg('Aviso a 6 meses creado ✓ (te llegará por email).')
-            } catch {
-              setRemindMsg('No se pudo crear el aviso.')
-            }
-          }}
-          style={miniBtn(colors.surface2, colors.text)}
-        >
-          Programar aviso
-        </button>
-      )
-    }
+    if (flag === 'agenda') return <button onClick={() => goTab('agenda')} style={miniBtn(colors.surface2, colors.text)}>Ir a Agenda</button>
     return null
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {([['nuevo', 'Cliente nuevo'], ['plani', 'Nueva plani']] as [ChecklistKind, string][]).map(([k, l]) => (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        {KIND_LABELS.map(([k, l]) => (
           <button key={k} onClick={() => setKind(k)} style={{ background: kind === k ? colors.accent : colors.surface2, color: kind === k ? '#fff' : mut(0.6), border: kind === k ? 'none' : '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '9px 18px', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
             {l}
           </button>
         ))}
+      </div>
+
+      <div style={{ fontSize: 11.5, color: mut(0.45), margin: '0 2px 14px', lineHeight: 1.5 }}>
+        Solo aparecen las tareas manuales: el contrato, las temporalidades, el cumpleaños, la petición de reseñas (2 meses), el aviso de analítica (cada 6 meses) y el control de regalos ya son automáticos.
       </div>
 
       {/* progreso */}
@@ -144,8 +161,6 @@ export default function Checklist({ clientId, clientPhone, goTab }: Props) {
         </div>
       </div>
 
-      {remindMsg && <div style={{ fontSize: 12, color: colors.green, marginBottom: 10 }}>{remindMsg}</div>}
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {steps.map((s, i) =>
           s.sub ? (
@@ -158,9 +173,12 @@ export default function Checklist({ clientId, clientPhone, goTab }: Props) {
               </div>
             </div>
           ) : (
-            <div key={s.key} style={{ ...card, padding: '12px 15px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <CheckRow label={`${i + 1}. ${s.label}`} checked={done.has(s.key)} onToggle={() => toggle(s.key)} />
-              <div style={{ marginLeft: 'auto', flex: 'none' }}>{flagButton(s.flag)}</div>
+            <div key={s.key} style={{ ...card, padding: '12px 15px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <CheckRow label={`${i + 1}. ${s.label}`} checked={done.has(s.key)} onToggle={() => toggle(s.key)} />
+                <div style={{ marginLeft: 'auto', flex: 'none' }}>{flagButton(s.flag)}</div>
+              </div>
+              {s.hint && <div style={{ fontSize: 11, color: mut(0.4), marginTop: 5, paddingLeft: 30, lineHeight: 1.45 }}>{s.hint}</div>}
             </div>
           ),
         )}

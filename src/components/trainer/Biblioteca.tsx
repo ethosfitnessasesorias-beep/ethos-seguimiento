@@ -6,9 +6,11 @@ import {
   EVENT_TYPES,
   generateProgram,
   listTemplates,
+  saveTemplate,
   todayStr,
   type EventType,
   type ProgramTemplate,
+  type WeekPattern,
 } from '../../lib/events'
 import Modal from '../Modal'
 
@@ -23,11 +25,25 @@ function mondayOf(isoDate: string): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }
 
+// Plantilla predefinida con las tareas del estudio inicial de un cliente nuevo:
+// peso los 7 días, perímetros y fotos el lunes, registro nutricional el martes,
+// pasos y vídeos de ejercicios el domingo. Editable como cualquier plantilla.
+const ESTUDIO_INICIAL: WeekPattern = {
+  0: [{ type: 'peso' }, { type: 'perimetros' }, { type: 'fotos' }],
+  1: [{ type: 'peso' }, { type: 'nutricion' }],
+  2: [{ type: 'peso' }],
+  3: [{ type: 'peso' }],
+  4: [{ type: 'peso' }],
+  5: [{ type: 'peso' }],
+  6: [{ type: 'peso' }, { type: 'pasos' }, { type: 'video' }],
+}
+
 export default function Biblioteca() {
   const [templates, setTemplates] = useState<ProgramTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState<ProgramTemplate | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
 
   const reload = useCallback(() => {
     listTemplates()
@@ -43,9 +59,28 @@ export default function Biblioteca() {
     reload()
   }
 
+  const hasEstudio = templates.some((t) => t.name.trim().toLowerCase() === 'estudio inicial')
+  const createEstudio = async () => {
+    setCreating(true)
+    try {
+      await saveTemplate('Estudio Inicial', ESTUDIO_INICIAL)
+      setMsg('Plantilla «Estudio Inicial» creada. Aplícala a cualquier cliente nuevo (1 semana suele bastar).')
+      reload()
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div>
-      <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Biblioteca</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Biblioteca</div>
+        {!loading && !hasEstudio && (
+          <button onClick={createEstudio} disabled={creating} style={{ background: colors.accent, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 16px', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', flex: 'none', opacity: creating ? 0.6 : 1 }}>
+            {creating ? 'Creando…' : '+ Crear plantilla «Estudio Inicial»'}
+          </button>
+        )}
+      </div>
       <div style={{ fontSize: 13.5, color: mut(0.5), marginBottom: 22 }}>
         Tus estructuras de semana guardadas. Selecciona una y replícala en cualquier cliente.
       </div>

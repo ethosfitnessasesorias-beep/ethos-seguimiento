@@ -1,11 +1,15 @@
 import { supabase } from './supabase'
 
-export type Milestone = 'welcome' | '6m' | '12m'
+export type Milestone = 'welcome' | '6m' | '12m' | '18m' | '24m' | '30m' | '36m'
 
 export const MILESTONES: { key: Milestone; label: string; months: number }[] = [
   { key: 'welcome', label: 'Regalo de bienvenida', months: 0 },
   { key: '6m', label: 'Regalo · 6 meses', months: 6 },
-  { key: '12m', label: 'Regalo · 12 meses', months: 12 },
+  { key: '12m', label: 'Regalo · 1 año', months: 12 },
+  { key: '18m', label: 'Regalo · 1,5 años', months: 18 },
+  { key: '24m', label: 'Regalo · 2 años', months: 24 },
+  { key: '30m', label: 'Regalo · 2,5 años', months: 30 },
+  { key: '36m', label: 'Regalo · 3 años', months: 36 },
 ]
 
 export interface GiftClaim {
