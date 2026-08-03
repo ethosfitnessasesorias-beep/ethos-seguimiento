@@ -6,6 +6,7 @@ export type EventType =
   | 'peso' | 'perimetros' | 'fotos' | 'pasos'
   | 'nutricion' | 'reporte' | 'cambio' | 'encuesta'
   | 'video' | 'comida'
+  | 'llamada' | 'revision'
 export type MetricAction = 'weight' | 'perim' | 'photo' | 'steps'
 export type FormLink = 'reporte' | 'cambio' | 'encuesta' | 'nutricion'
 
@@ -34,6 +35,8 @@ export const EVENT_TYPES: Record<EventType, EventTypeConfig> = {
   encuesta: { label: 'Encuesta de satisfacción', color: '#22d3ee', form: 'encuesta' },
   video: { label: 'Enviar vídeos al coach', color: '#fb923c', form: null, wa: 'Hola, estos son mis vídeos de esta semana:' },
   comida: { label: 'Enviar foto de comida', color: '#e879f9', form: null, wa: 'Hola, esta es una de mis comidas de hoy:' },
+  llamada: { label: 'Llamada con el coach', color: '#818cf8', form: null },
+  revision: { label: 'Revisión / entreno personal', color: '#f87171', form: null },
 }
 
 export const EVENT_ORDER: EventType[] = [
@@ -41,7 +44,21 @@ export const EVENT_ORDER: EventType[] = [
   'peso', 'perimetros', 'fotos', 'pasos',
   'nutricion', 'reporte', 'cambio', 'encuesta',
   'video', 'comida',
+  'llamada', 'revision',
 ]
+
+// Patrón predefinido del estudio inicial de un cliente nuevo: peso los 7 días,
+// perímetros y fotos el lunes, registro nutricional el martes, pasos y vídeos
+// el domingo. Disponible siempre como plantilla al programar la semana.
+export const ESTUDIO_INICIAL_PATTERN: WeekPattern = {
+  0: [{ type: 'peso' }, { type: 'perimetros' }, { type: 'fotos' }],
+  1: [{ type: 'peso' }, { type: 'nutricion' }],
+  2: [{ type: 'peso' }],
+  3: [{ type: 'peso' }],
+  4: [{ type: 'peso' }],
+  5: [{ type: 'peso' }],
+  6: [{ type: 'peso' }, { type: 'pasos' }, { type: 'video' }],
+}
 
 export interface CalEvent {
   id: string

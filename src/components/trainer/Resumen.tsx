@@ -69,7 +69,12 @@ export default function Resumen({ trainerName, onOpenClient }: Props) {
     d.setDate(d.getDate() - 30)
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })()
-  const toReview = clients.filter((c) => !c.last_physique_review || c.last_physique_review <= cutoff)
+  // Solo clientes con al menos 30 días de antigüedad y sin valoración reciente.
+  const toReview = clients.filter((c) => {
+    const since = (c.start_date ?? c.created_at)?.slice(0, 10)
+    if (!since || since > cutoff) return false
+    return !c.last_physique_review || c.last_physique_review <= cutoff
+  })
 
   const markPaid = async (c: Profile) => {
     await markClientPaid(c)

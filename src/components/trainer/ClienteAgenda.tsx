@@ -5,6 +5,7 @@ import {
   deleteEvent,
   deleteProgram,
   deleteTemplate,
+  ESTUDIO_INICIAL_PATTERN,
   EVENT_ORDER,
   EVENT_TYPES,
   generateProgram,
@@ -66,6 +67,8 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
   const [editProgram, setEditProgram] = useState<ProgramGroup | null>(null)
   const [addDate, setAddDate] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  // Días del calendario con la lista de eventos desplegada (cuando hay más de 4).
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
 
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const startDow = (new Date(year, month, 1).getDay() + 6) % 7
@@ -200,7 +203,7 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
               <span style={{ fontSize: 11, fontWeight: 600, color: c.inM ? mut(0.6) : 'transparent', paddingLeft: 2 }}>
                 {c.inM ? c.day : ''}
               </span>
-              {c.evs.slice(0, 4).map((e) => {
+              {(expandedDays.has(c.date) ? c.evs : c.evs.slice(0, 4)).map((e) => {
                 const cfg = EVENT_TYPES[e.type as EventType]
                 return (
                   <div
@@ -230,7 +233,20 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
                 )
               })}
               {c.evs.length > 4 && (
-                <span style={{ fontSize: 9, color: mut(0.4), paddingLeft: 2 }}>+{c.evs.length - 4} más</span>
+                <button
+                  onClick={(ev) => {
+                    ev.stopPropagation()
+                    setExpandedDays((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(c.date)) next.delete(c.date)
+                      else next.add(c.date)
+                      return next
+                    })
+                  }}
+                  style={{ background: 'none', border: 'none', fontSize: 9.5, fontWeight: 700, color: colors.accent, cursor: 'pointer', fontFamily: 'inherit', padding: '1px 2px', textAlign: 'left' }}
+                >
+                  {expandedDays.has(c.date) ? '▴ ver menos' : `▾ +${c.evs.length - 4} más`}
+                </button>
               )}
             </div>
           ))}
@@ -591,19 +607,32 @@ function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Bloque fuerza · Semana tipo" style={fieldStyle} />
         </label>
 
-        {templates.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>PLANTILLAS GUARDADAS (Biblioteca)</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {templates.map((t) => (
-                <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '5px 6px 5px 11px', fontSize: 12 }}>
-                  <button onClick={() => applyTemplate(t)} style={{ background: 'none', border: 'none', color: colors.text, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>{t.name}</button>
-                  <button onClick={() => removeTemplate(t)} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 13 }}>✕</button>
-                </span>
-              ))}
-            </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>PLANTILLAS (Biblioteca)</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {/* Plantilla fija del estudio inicial de un cliente nuevo (siempre disponible). */}
+            {!templates.some((t) => t.name.trim().toLowerCase() === 'estudio inicial') && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(219,24,9,0.12)', border: '1px solid rgba(219,24,9,0.4)', borderRadius: 999, padding: '5px 11px', fontSize: 12 }}>
+                <button
+                  onClick={() => {
+                    setPattern(ESTUDIO_INICIAL_PATTERN)
+                    if (!name.trim()) setName('Estudio Inicial')
+                  }}
+                  style={{ background: 'none', border: 'none', color: colors.text, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}
+                >
+                  ⭐ Estudio Inicial
+                </button>
+              </span>
+            )}
+            {templates.map((t) => (
+              <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: colors.surface2, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '5px 6px 5px 11px', fontSize: 12 }}>
+                <button onClick={() => applyTemplate(t)} style={{ background: 'none', border: 'none', color: colors.text, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>{t.name}</button>
+                <button onClick={() => removeTemplate(t)} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 13 }}>✕</button>
+              </span>
+            ))}
           </div>
-        )}
+          <div style={{ fontSize: 10.5, color: mut(0.4), marginTop: 5 }}>Toca una plantilla para cargar su semana y ajústala antes de generar.</div>
+        </div>
 
         <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 8 }}>EVENTOS DE CADA DÍA</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

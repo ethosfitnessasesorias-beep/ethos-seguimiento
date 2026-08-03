@@ -3,6 +3,7 @@ import { colors, mut } from '../../theme'
 import { listClients, type Profile } from '../../lib/db'
 import {
   deleteTemplate,
+  ESTUDIO_INICIAL_PATTERN,
   EVENT_TYPES,
   generateProgram,
   listTemplates,
@@ -10,7 +11,6 @@ import {
   todayStr,
   type EventType,
   type ProgramTemplate,
-  type WeekPattern,
 } from '../../lib/events'
 import Modal from '../Modal'
 
@@ -23,19 +23,6 @@ function mondayOf(isoDate: string): string {
   const off = (dt.getDay() + 6) % 7
   dt.setDate(dt.getDate() - off)
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-}
-
-// Plantilla predefinida con las tareas del estudio inicial de un cliente nuevo:
-// peso los 7 días, perímetros y fotos el lunes, registro nutricional el martes,
-// pasos y vídeos de ejercicios el domingo. Editable como cualquier plantilla.
-const ESTUDIO_INICIAL: WeekPattern = {
-  0: [{ type: 'peso' }, { type: 'perimetros' }, { type: 'fotos' }],
-  1: [{ type: 'peso' }, { type: 'nutricion' }],
-  2: [{ type: 'peso' }],
-  3: [{ type: 'peso' }],
-  4: [{ type: 'peso' }],
-  5: [{ type: 'peso' }],
-  6: [{ type: 'peso' }, { type: 'pasos' }, { type: 'video' }],
 }
 
 export default function Biblioteca() {
@@ -63,7 +50,7 @@ export default function Biblioteca() {
   const createEstudio = async () => {
     setCreating(true)
     try {
-      await saveTemplate('Estudio Inicial', ESTUDIO_INICIAL)
+      await saveTemplate('Estudio Inicial', ESTUDIO_INICIAL_PATTERN)
       setMsg('Plantilla «Estudio Inicial» creada. Aplícala a cualquier cliente nuevo (1 semana suele bastar).')
       reload()
     } finally {

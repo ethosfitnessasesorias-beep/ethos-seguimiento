@@ -228,6 +228,8 @@ export default async function handler(req: Req, res: Res) {
     fotos: 'subir tus fotos de progreso',
     video: 'enviar tus vídeos al coach',
     comida: 'enviar la foto de tu comida',
+    llamada: 'tu llamada con el coach',
+    revision: 'tu revisión / entreno personal',
   }
   const REMIND_TYPES = Object.keys(TYPE_LABEL)
   // Mañana en horario de Madrid.
