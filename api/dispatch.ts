@@ -321,6 +321,8 @@ export default async function handler(req: Req, res: Res) {
   }
   const REVIEW_TEXT =
     '{nombre} ya llevamos 2 meses trabajando juntos 💪 Quería pedirte un pequeño favor: si estás contento con cómo va todo, nos ayudaría muchísimo que nos dejaras una reseñita en Trustpilot: https://www.trustpilot.com/review/ethosfitness.es y en Google Maps: https://g.page/r/CcAVSxAhkVsUEBM/review — Esto nos ayuda enormemente a seguir creciendo y poder ayudar a más personas. ¡Mil gracias de corazón!'
+  const REVIEW_REMINDER =
+    '{nombre} ¿me harías un favorcito? Si todavía no has podido dejarnos tu reseña, me ayudarías muchísimo: Trustpilot: https://www.trustpilot.com/review/ethosfitness.es y Google Maps: https://g.page/r/CcAVSxAhkVsUEBM/review — Solo te llevará un minuto y nos ayuda a seguir creciendo y ayudar a más personas. ¡Mil gracias de corazón!'
   if (hhmm >= '10:00') {
     const curYear = Number(today.slice(0, 4))
     const todayMD = today.slice(5)
@@ -333,6 +335,14 @@ export default async function handler(req: Req, res: Res) {
     // Emails de los entrenadores (para el aviso de analítica).
     const { data: trainerRows } = await supabase.from('profiles').select('id, email').eq('role', 'trainer')
     const trainerEmail = new Map((trainerRows ?? []).map((t) => [t.id as string, (t.email as string | null) ?? null]))
+    // Clientes con la reseña YA confirmada (check «resena_hecha» del checklist de
+    // Seguimiento): a estos no se les vuelve a recordar.
+    const { data: segRows } = await supabase.from('client_checklists').select('client_id, done').eq('kind', 'seguimiento')
+    const reviewDone = new Set(
+      (segRows ?? [])
+        .filter((r) => Array.isArray(r.done) && (r.done as string[]).includes('resena_hecha'))
+        .map((r) => r.client_id as string),
+    )
     for (const c of clients ?? []) {
       if (!withinBudget()) break
       if ((c.status ?? 'active') !== 'active') continue
@@ -355,6 +365,10 @@ export default async function handler(req: Req, res: Res) {
           // Petición de reseñas a los 2 meses exactos (una sola vez).
           if (months === 2 && dayMatches && !c.review_asked) {
             await greet(c.id, REVIEW_TEXT, { review_asked: today })
+          }
+          // Recordatorio de reseña a los 3, 6 y 12 meses si aún no consta como hecha.
+          if ((months === 3 || months === 6 || months === 12) && dayMatches && !reviewDone.has(c.id) && c.review_asked !== today) {
+            await greet(c.id, REVIEW_REMINDER, { review_asked: today })
           }
           // Analítica: email automático AL ENTRENADOR cada 6 meses de permanencia.
           if (EMAIL_ENABLED && months > 0 && months % 6 === 0 && dayMatches && c.last_analitica !== today) {

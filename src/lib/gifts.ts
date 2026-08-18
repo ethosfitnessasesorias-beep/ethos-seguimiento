@@ -19,6 +19,7 @@ export interface GiftClaim {
   claimed_at: string
   delivered: boolean
   delivered_at: string | null
+  gift_note: string | null // qué se le compró/envió exactamente
 }
 
 function addMonths(iso: string, months: number): Date {
@@ -94,6 +95,7 @@ export async function listPendingClaims(): Promise<PendingClaim[]> {
     claimed_at: r.claimed_at as string,
     delivered: r.delivered as boolean,
     delivered_at: r.delivered_at as string | null,
+    gift_note: (r.gift_note as string | null) ?? null,
     client_name: ((r.profiles as { full_name?: string } | null)?.full_name) ?? null,
   }))
 }
@@ -119,6 +121,12 @@ export async function setMilestoneDelivered(clientId: string, milestone: Milesto
       { client_id: clientId, milestone, delivered: true, delivered_at: new Date().toISOString() },
       { onConflict: 'client_id,milestone' },
     )
+  if (error) throw error
+}
+
+// Apunta qué regalo se le compró/envió en ese hito.
+export async function setGiftNote(claimId: string, note: string): Promise<void> {
+  const { error } = await supabase.from('gift_claims').update({ gift_note: note.trim() || null }).eq('id', claimId)
   if (error) throw error
 }
 

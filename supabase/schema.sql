@@ -739,3 +739,8 @@ alter table public.profiles add column if not exists pay_next_date date;        
 alter table public.profiles add column if not exists last_physique_review date;   -- última valoración de cambio físico
 alter table public.profiles add column if not exists last_analitica text;         -- último aviso de analítica enviado (ISO)
 alter table public.profiles add column if not exists review_asked text;           -- fecha en que se pidió reseña (ISO)
+
+-- ============================================================
+--  v29 · Nota de qué regalo se compró/envió en cada hito
+-- ============================================================
+alter table public.gift_claims add column if not exists gift_note text;

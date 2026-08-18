@@ -31,7 +31,7 @@ import { listSubmissions, setReviewed, deleteSubmission, type FormSubmission } f
 import { downloadFormPdf } from '../../lib/formPdf'
 import MeasureGuide from '../MeasureGuide'
 import { getClientNote, saveClientNote } from '../../lib/notes'
-import { giftTimeline, listClaims, removeMilestoneClaim, setMilestoneDelivered, type GiftClaim, type Milestone } from '../../lib/gifts'
+import { giftTimeline, listClaims, removeMilestoneClaim, setGiftNote, setMilestoneDelivered, type GiftClaim, type Milestone } from '../../lib/gifts'
 import { addOffer, deleteOffer, listOffers, setOfferLaunched, setOfferNotes, type ClientOffer } from '../../lib/offers'
 import { addReminder } from '../../lib/reminders'
 import { generateClientReport } from '../../lib/report'
@@ -1013,21 +1013,32 @@ function GiftsManager({ profile }: { profile: Profile }) {
           )}
           {steps.map((s) => {
             const done = s.status === 'delivered' || s.status === 'claimed'
+            const claim = claims.find((c) => c.milestone === s.key)
             return (
-              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
-                  <div style={{ fontSize: 11, color: mut(0.45), marginTop: 1 }}>
-                    {s.date.toLocaleDateString('es-ES')} · {s.status === 'delivered' ? 'entregado' : s.status === 'claimed' ? 'reclamado (pendiente de entregar)' : s.status === 'available' ? 'disponible' : `en ${s.daysRemaining} días`}
+              <div key={s.key} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: mut(0.45), marginTop: 1 }}>
+                      {s.date.toLocaleDateString('es-ES')} · {s.status === 'delivered' ? 'entregado' : s.status === 'claimed' ? 'reclamado (pendiente de entregar)' : s.status === 'available' ? 'disponible' : `en ${s.daysRemaining} días`}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => toggle(s.key, !done)}
+                    disabled={busy}
+                    style={{ background: done ? colors.surface2 : 'rgba(74,222,128,0.14)', color: done ? mut(0.6) : colors.green, border: `1px solid ${done ? 'rgba(255,255,255,0.12)' : 'rgba(74,222,128,0.4)'}`, borderRadius: 9, padding: '7px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {done ? 'Marcar pendiente' : 'Marcar entregado'}
+                  </button>
                 </div>
-                <button
-                  onClick={() => toggle(s.key, !done)}
-                  disabled={busy}
-                  style={{ background: done ? colors.surface2 : 'rgba(74,222,128,0.14)', color: done ? mut(0.6) : colors.green, border: `1px solid ${done ? 'rgba(255,255,255,0.12)' : 'rgba(74,222,128,0.4)'}`, borderRadius: 9, padding: '7px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  {done ? 'Marcar pendiente' : 'Marcar entregado'}
-                </button>
+                {claim && (
+                  <input
+                    defaultValue={claim.gift_note ?? ''}
+                    onBlur={(e) => setGiftNote(claim.id, e.target.value).then(load).catch(() => {})}
+                    placeholder="¿Qué le compraste o enviaste? (straps, shaker, descuento…)"
+                    style={{ width: '100%', marginTop: 7, background: '#0e0e0e', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 10px', color: colors.text, fontFamily: 'inherit', fontSize: 12, outline: 'none' }}
+                  />
+                )}
               </div>
             )
           })}
