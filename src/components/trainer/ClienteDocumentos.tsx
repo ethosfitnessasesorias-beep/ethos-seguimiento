@@ -6,7 +6,9 @@ import {
   createFolder,
   deleteDocument,
   deleteFolder,
+  downloadDocument,
   humanSize,
+  isViewableDoc,
   listDocuments,
   listFolders,
   moveDocument,
@@ -220,10 +222,18 @@ function DocRow({
           ))}
         </select>
       )}
-      {d.url && (
+      {isViewableDoc(d) && d.url ? (
         <a href={d.url} target="_blank" rel="noreferrer" style={{ color: mut(0.6) }}>
           <Download />
         </a>
+      ) : (
+        <button
+          onClick={() => downloadDocument(d).catch(() => alert('No se pudo descargar el documento.'))}
+          title="Descargar"
+          style={{ background: 'none', border: 'none', color: mut(0.6), cursor: 'pointer', padding: 0 }}
+        >
+          <Download />
+        </button>
       )}
       <button onClick={onRemove} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 15 }}>✕</button>
     </div>

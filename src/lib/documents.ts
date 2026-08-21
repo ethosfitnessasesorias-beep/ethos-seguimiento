@@ -47,6 +47,62 @@ export function humanSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// Tipos que el navegador puede MOSTRAR en una pestaña. El resto (Word, Excel,
+// zip…) hay que descargarlos como archivo: navegar a ellos deja la pantalla
+// en blanco en la app instalada (el PWA no tiene gestor de descargas).
+const INLINE_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp']
+
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  zip: 'application/zip',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+}
+
+export function docExt(doc: DocumentRow): string {
+  return (doc.storage_path.split('.').pop() || '').toLowerCase()
+}
+
+/** true si el navegador puede abrirlo en pestaña (PDF, imágenes). */
+export function isViewableDoc(doc: DocumentRow): boolean {
+  return INLINE_EXTS.includes(docExt(doc))
+}
+
+/**
+ * Descarga un documento como archivo real: lo baja por la API (con sesión,
+ * sin enlaces que caduquen) y dispara la descarga con su nombre original.
+ * Funciona también dentro de la app instalada.
+ */
+export async function downloadDocument(doc: DocumentRow): Promise<void> {
+  const { data, error } = await supabase.storage.from(DOC_BUCKET).download(doc.storage_path)
+  if (error || !data) throw error ?? new Error('No se pudo descargar el documento.')
+  const ext = docExt(doc)
+  const base = (doc.title || 'documento').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'documento'
+  const filename = base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`
+  const blob = data.type ? data : new Blob([data], { type: MIME_BY_EXT[ext] || 'application/octet-stream' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
 export async function listDocuments(clientId: string): Promise<DocumentWithUrl[]> {
   const { data, error } = await supabase
     .from('documents')
@@ -58,7 +114,7 @@ export async function listDocuments(clientId: string): Promise<DocumentWithUrl[]
   if (rows.length === 0) return []
   const { data: signed } = await supabase.storage
     .from(DOC_BUCKET)
-    .createSignedUrls(rows.map((r) => r.storage_path), 3600)
+    .createSignedUrls(rows.map((r) => r.storage_path), 21600)
   const byPath = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]))
   return rows.map((r) => ({ ...r, url: byPath.get(r.storage_path) ?? null }))
 }
@@ -74,7 +130,7 @@ export async function addDocument(
   const path = `${clientId}/${crypto.randomUUID()}.${ext}`
   const { error: upErr } = await supabase.storage
     .from(DOC_BUCKET)
-    .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false })
+    .upload(path, file, { contentType: file.type || MIME_BY_EXT[ext] || 'application/octet-stream', upsert: false })
   if (upErr) throw upErr
   const { error } = await supabase.from('documents').insert({
     client_id: clientId,

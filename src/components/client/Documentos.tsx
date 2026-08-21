@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { catStyle, humanSize, listDocuments, listFolders, type DocFolder, type DocumentWithUrl } from '../../lib/documents'
+import { catStyle, downloadDocument, humanSize, isViewableDoc, listDocuments, listFolders, type DocFolder, type DocumentWithUrl } from '../../lib/documents'
 import { Search, FileIcon, Download } from '../icons'
 
 const chips = ['Todos', 'Entrenamiento', 'Nutrición', 'Guía', 'Contrato']
@@ -9,6 +9,65 @@ function shortDate(iso: string): string {
   const M = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
   const [y, m, d] = iso.slice(0, 10).split('-')
   return `${Number(d)} ${M[Number(m) - 1]} ${y}`
+}
+
+// Fila de documento. Los PDF e imágenes se abren en pestaña (el navegador los
+// muestra); el resto (Word, Excel…) se DESCARGA como archivo, porque navegar a
+// ellos deja la pantalla en blanco dentro de la app instalada.
+function DocRow({ d }: { d: DocumentWithUrl }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(false)
+  const st = catStyle(d.category)
+  const viewable = isViewableDoc(d)
+
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 13, background: colors.surface1, border: `1px solid ${err ? 'rgba(219,24,9,0.4)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 14, padding: '14px 15px', textDecoration: 'none', color: colors.text, width: '100%', fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left' }
+
+  const inner = (
+    <>
+      <div style={{ width: 42, height: 42, flex: 'none', borderRadius: 11, background: st.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <FileIcon size={19} stroke={st.color} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{d.title}</div>
+        <div style={{ fontSize: 11, color: err ? '#f5a99f' : mut(0.45), marginTop: 3 }}>
+          {busy ? 'Descargando…' : err ? 'No se pudo descargar. Toca para reintentar.' : (
+            <>
+              <span style={{ color: st.color, fontWeight: 600 }}>{d.category}</span> · {shortDate(d.created_at)}
+              {d.size_bytes ? ` · ${humanSize(d.size_bytes)}` : ''}
+            </>
+          )}
+        </div>
+      </div>
+      <Download />
+    </>
+  )
+
+  if (viewable && d.url) {
+    return (
+      <a href={d.url} target="_blank" rel="noreferrer" style={rowStyle}>
+        {inner}
+      </a>
+    )
+  }
+
+  const download = async () => {
+    if (busy) return
+    setBusy(true)
+    setErr(false)
+    try {
+      await downloadDocument(d)
+    } catch {
+      setErr(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button onClick={download} style={{ ...rowStyle, opacity: busy ? 0.7 : 1 }}>
+      {inner}
+    </button>
+  )
 }
 
 export default function Documentos({ clientId }: { clientId: string }) {
@@ -102,30 +161,9 @@ export default function Documentos({ clientId }: { clientId: string }) {
               </button>
               {!isCollapsed && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {g.docs.map((d) => {
-                  const st = catStyle(d.category)
-                  return (
-                    <a
-                      key={d.id}
-                      href={d.url ?? '#'}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 13, background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '14px 15px', textDecoration: 'none', color: colors.text }}
-                    >
-                      <div style={{ width: 42, height: 42, flex: 'none', borderRadius: 11, background: st.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <FileIcon size={19} stroke={st.color} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{d.title}</div>
-                        <div style={{ fontSize: 11, color: mut(0.45), marginTop: 3 }}>
-                          <span style={{ color: st.color, fontWeight: 600 }}>{d.category}</span> · {shortDate(d.created_at)}
-                          {d.size_bytes ? ` · ${humanSize(d.size_bytes)}` : ''}
-                        </div>
-                      </div>
-                      <Download />
-                    </a>
-                  )
-                })}
+                {g.docs.map((d) => (
+                  <DocRow key={d.id} d={d} />
+                ))}
               </div>
               )}
             </div>
