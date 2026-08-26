@@ -276,38 +276,58 @@ function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string;
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<DocCategory>('Entrenamiento')
   const [folderId, setFolderId] = useState<string>('')
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [notify, setNotify] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [err, setErr] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Sube todos los archivos seleccionados con LA MISMA categoría y carpeta.
+  // Con varios archivos, cada uno usa su propio nombre como título.
   const upload = async () => {
-    if (!file) {
-      setErr('Elige un archivo.')
+    if (files.length === 0) {
+      setErr('Elige al menos un archivo.')
       return
     }
     setBusy(true)
     setErr(null)
-    try {
-      await addDocument(clientId, file, title, category, folderId || null)
-      if (notify) {
-        const nombre = title.trim() || file.name
-        // Avisa al cliente por push + email (y le aparece en su campana).
-        await sendNow(clientId, `📄 Tienes un nuevo documento: "${nombre}". Ábrelo en la sección Documentos de tu app.`).catch(() => {})
+    const failed: File[] = []
+    for (let i = 0; i < files.length; i++) {
+      setProgress(i + 1)
+      const f = files[i]
+      try {
+        await addDocument(clientId, f, files.length === 1 ? title : '', category, folderId || null)
+      } catch {
+        failed.push(f)
       }
-      onDone()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'No se pudo subir.')
-      setBusy(false)
     }
+    const okCount = files.length - failed.length
+    if (okCount > 0 && notify) {
+      // Un solo aviso al cliente aunque se suban varios (push + email + campana).
+      const body =
+        okCount === 1
+          ? `📄 Tienes un nuevo documento: "${files.length === 1 ? title.trim() || files[0].name : 'nuevo documento'}". Ábrelo en la sección Documentos de tu app.`
+          : `📄 Tienes ${okCount} documentos nuevos. Ábrelos en la sección Documentos de tu app.`
+      await sendNow(clientId, body).catch(() => {})
+    }
+    if (failed.length > 0) {
+      setFiles(failed)
+      setProgress(0)
+      setBusy(false)
+      setErr(`No se pudieron subir ${failed.length} archivo(s): ${failed.map((f) => f.name).join(', ')}. Pulsa de nuevo para reintentar solo esos.`)
+      return
+    }
+    onDone()
   }
 
   return (
-    <Modal title="Subir documento" onClose={onClose}>
+    <Modal title="Subir documentos" onClose={onClose}>
       <label style={{ display: 'block', marginBottom: 12 }}>
-        <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Título</span>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Plan de entrenamiento · Bloque 3" style={fieldStyle} />
+        <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>
+          Título {files.length > 1 ? '(con varios archivos se usa el nombre de cada uno)' : '(opcional)'}
+        </span>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Plan de entrenamiento · Bloque 3" disabled={files.length > 1} style={{ ...fieldStyle, opacity: files.length > 1 ? 0.45 : 1 }} />
       </label>
 
       <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>CATEGORÍA</div>
@@ -333,19 +353,29 @@ function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string;
         </select>
       </label>
 
-      <button onClick={() => inputRef.current?.click()} style={{ width: '100%', background: colors.surface2, color: file ? colors.text : mut(0.6), border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 10, padding: 14, fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-        {file ? `📎 ${file.name}` : 'Elegir archivo (PDF, imagen…)'}
+      <button onClick={() => inputRef.current?.click()} style={{ width: '100%', background: colors.surface2, color: files.length ? colors.text : mut(0.6), border: '1px dashed rgba(255,255,255,0.2)', borderRadius: 10, padding: 14, fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+        {files.length === 0 ? 'Elegir archivos (puedes seleccionar varios a la vez)' : files.length === 1 ? `📎 ${files[0].name}` : `📎 ${files.length} archivos seleccionados`}
       </button>
-      <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <input ref={inputRef} type="file" multiple style={{ display: 'none' }} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+      {files.length > 1 && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 120, overflowY: 'auto' }} className="om-scroll">
+          {files.map((f, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: mut(0.6) }}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {f.name}</span>
+              <button onClick={() => setFiles((s) => s.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 12, padding: 0 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer' }}>
         <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} style={{ width: 17, height: 17, accentColor: colors.accent }} />
-        <span style={{ fontSize: 12.5, color: mut(0.7) }}>Avisar al cliente (notificación push + email)</span>
+        <span style={{ fontSize: 12.5, color: mut(0.7) }}>Avisar al cliente (un solo aviso, push + email)</span>
       </label>
 
       {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 12 }}>{err}</div>}
       <button onClick={upload} disabled={busy} style={{ width: '100%', marginTop: 14, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-        {busy ? 'Subiendo…' : 'Subir documento'}
+        {busy ? `Subiendo ${progress}/${files.length}…` : files.length > 1 ? `Subir ${files.length} documentos` : 'Subir documento'}
       </button>
     </Modal>
   )
