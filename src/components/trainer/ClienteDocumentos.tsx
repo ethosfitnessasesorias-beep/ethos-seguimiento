@@ -9,6 +9,7 @@ import {
   downloadDocument,
   humanSize,
   isViewableDoc,
+  setDocumentCategory,
   listDocuments,
   listFolders,
   moveDocument,
@@ -148,6 +149,10 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
                           await moveDocument(d.id, fid)
                           reload()
                         }}
+                        onCategory={async (cat) => {
+                          await setDocumentCategory(d.id, cat)
+                          reload()
+                        }}
                       />
                     ))}
                   </div>
@@ -189,12 +194,14 @@ function DocRow({
   currentFolderName,
   onRemove,
   onMove,
+  onCategory,
 }: {
   d: DocumentWithUrl
   folders: DocFolder[]
   currentFolderName: string | null
   onRemove: () => void
   onMove: (folderId: string | null) => void
+  onCategory: (cat: DocCategory) => void
 }) {
   const st = catStyle(d.category)
   return (
@@ -205,20 +212,35 @@ function DocRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600 }}>{d.title}</div>
         <div style={{ fontSize: 11, color: mut(0.45), marginTop: 3 }}>
-          <span style={{ color: st.color, fontWeight: 600 }}>{d.category}</span> · {d.created_at.slice(0, 10)}
+          {d.created_at.slice(0, 10)}
           {d.size_bytes ? ` · ${humanSize(d.size_bytes)}` : ''}
         </div>
       </div>
+      {/* categoría editable (el contrato es fijo) */}
+      {d.category === 'Contrato' ? (
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: st.color, background: st.bg, borderRadius: 8, padding: '6px 9px' }}>Contrato</span>
+      ) : (
+        <select
+          value={d.category}
+          onChange={(e) => onCategory(e.target.value as DocCategory)}
+          title="Cambiar categoría"
+          style={{ background: st.bg, border: `1px solid ${st.color}`, borderRadius: 8, padding: '6px 8px', color: st.color, fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, outline: 'none', maxWidth: 130, cursor: 'pointer' }}
+        >
+          {UPLOAD_CATEGORIES.map((c) => (
+            <option key={c.key} value={c.key} style={{ background: '#111', color: '#eee' }}>{c.key}</option>
+          ))}
+        </select>
+      )}
       {folders.length > 0 && (
         <select
           value={d.folder_id ?? ''}
           onChange={(e) => onMove(e.target.value || null)}
-          title={currentFolderName ? `Carpeta: ${currentFolderName}` : 'Sin carpeta'}
-          style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 8px', color: mut(0.7), fontFamily: 'inherit', fontSize: 11.5, outline: 'none', maxWidth: 130 }}
+          title={currentFolderName ? `Carpeta: ${currentFolderName}` : 'Cambiar de carpeta'}
+          style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 8px', color: mut(0.7), fontFamily: 'inherit', fontSize: 11.5, outline: 'none', maxWidth: 130, cursor: 'pointer' }}
         >
           <option value="">Sin carpeta</option>
           {folders.map((f) => (
-            <option key={f.id} value={f.id}>{f.name}</option>
+            <option key={f.id} value={f.id}>📁 {f.name}</option>
           ))}
         </select>
       )}

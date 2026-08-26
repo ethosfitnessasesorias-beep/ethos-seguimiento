@@ -175,3 +175,9 @@ export async function moveDocument(docId: string, folderId: string | null): Prom
   const { error } = await supabase.from('documents').update({ folder_id: folderId }).eq('id', docId)
   if (error) throw error
 }
+
+// Cambia la categoría de un documento ya subido.
+export async function setDocumentCategory(docId: string, category: DocCategory): Promise<void> {
+  const { error } = await supabase.from('documents').update({ category }).eq('id', docId)
+  if (error) throw error
+}
