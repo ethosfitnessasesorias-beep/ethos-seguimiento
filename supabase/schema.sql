@@ -744,3 +744,8 @@ alter table public.profiles add column if not exists review_asked text;         
 --  v29 · Nota de qué regalo se compró/envió en cada hito
 -- ============================================================
 alter table public.gift_claims add column if not exists gift_note text;
+
+-- ============================================================
+--  v30 · Miniaturas de fotos de progreso (carga rápida)
+-- ============================================================
+alter table public.progress_photos add column if not exists thumb_path text;

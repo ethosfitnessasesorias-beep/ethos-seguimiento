@@ -301,12 +301,14 @@ export interface ProgressPhoto {
   client_id: string
   log_date: string
   storage_path: string
+  thumb_path: string | null // miniatura comprimida para la cuadrícula
   folder_id: string | null
   created_at: string
 }
 
 export interface PhotoWithUrl extends ProgressPhoto {
   url: string | null
+  thumbUrl: string | null
 }
 
 export interface PhotoFolder {
@@ -350,28 +352,69 @@ export async function listPhotos(clientId: string): Promise<PhotoWithUrl[]> {
   if (error) throw error
   const rows = (data ?? []) as ProgressPhoto[]
   if (rows.length === 0) return []
-  const { data: signed } = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .createSignedUrls(rows.map((r) => r.storage_path), 3600)
+  const paths = [
+    ...rows.map((r) => r.storage_path),
+    ...rows.filter((r) => r.thumb_path).map((r) => r.thumb_path as string),
+  ]
+  const { data: signed } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrls(paths, 21600)
   const urlByPath = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]))
-  return rows.map((r) => ({ ...r, url: urlByPath.get(r.storage_path) ?? null }))
+  return rows.map((r) => ({
+    ...r,
+    url: urlByPath.get(r.storage_path) ?? null,
+    thumbUrl: r.thumb_path ? urlByPath.get(r.thumb_path) ?? null : null,
+  }))
+}
+
+// Reescala una imagen en el navegador y la devuelve como JPEG comprimido.
+// Devuelve null si el formato no se puede decodificar (se sube el original).
+async function resizeToJpeg(file: File, maxSide: number, quality: number): Promise<Blob | null> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
+    const w = Math.max(1, Math.round(bitmap.width * scale))
+    const h = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    bitmap.close()
+    return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+  } catch {
+    return null
+  }
 }
 
 export async function addPhoto(clientId: string, file: File, folderId?: string | null, logDate?: string): Promise<void> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-  const path = `${clientId}/${crypto.randomUUID()}.${ext}`
+  const id = crypto.randomUUID()
+  // Comprime la foto (máx. 1920 px) y genera una miniatura para la cuadrícula:
+  // pasa de varios MB a unos cientos de KB y la galería carga al instante.
+  const full = await resizeToJpeg(file, 1920, 0.82)
+  const thumb = await resizeToJpeg(file, 420, 0.7)
+  const ext = full ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${clientId}/${id}.${ext}`
   const { error: upErr } = await supabase.storage
     .from(PHOTO_BUCKET)
-    .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false })
+    .upload(path, full ?? file, { contentType: full ? 'image/jpeg' : file.type || 'image/jpeg', upsert: false })
   if (upErr) throw upErr
+  let thumbPath: string | null = null
+  if (thumb) {
+    thumbPath = `${clientId}/${id}_thumb.jpg`
+    const { error: tErr } = await supabase.storage
+      .from(PHOTO_BUCKET)
+      .upload(thumbPath, thumb, { contentType: 'image/jpeg', upsert: false })
+    if (tErr) thumbPath = null
+  }
   const { error } = await supabase
     .from('progress_photos')
-    .insert({ client_id: clientId, storage_path: path, folder_id: folderId ?? null, ...(logDate ? { log_date: logDate } : {}) })
+    .insert({ client_id: clientId, storage_path: path, thumb_path: thumbPath, folder_id: folderId ?? null, ...(logDate ? { log_date: logDate } : {}) })
   if (error) throw error
 }
 
 export async function deletePhoto(photo: ProgressPhoto): Promise<void> {
-  await supabase.storage.from(PHOTO_BUCKET).remove([photo.storage_path])
+  const toRemove = [photo.storage_path, ...(photo.thumb_path ? [photo.thumb_path] : [])]
+  await supabase.storage.from(PHOTO_BUCKET).remove(toRemove)
   const { error } = await supabase.from('progress_photos').delete().eq('id', photo.id)
   if (error) throw error
 }

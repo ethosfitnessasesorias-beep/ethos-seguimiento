@@ -48,10 +48,8 @@ const CLIENTE_NUEVO: Step[] = [
 const NUEVA_PLANI: Step[] = [
   { key: 'reportes', label: 'Mirar reportes y formulario de cambio de plani en la app', hint: 'Pestaña Formularios · botón ↓ PDF para adjuntar a Claude', flag: 'forms' },
   { key: 'contexto', label: 'Adjuntar datos de contexto actual al proyecto de Claude' },
-  { key: 'roadmap', label: 'Road Map y contar series (Excel — si lo usas)' },
   { key: 'canva', label: 'Canva: juntar plani en un solo documento (de plani 2 en adelante)' },
   { key: 'docs', label: 'Subir entregables: la plani nueva a «Plani actual» y mover la anterior a «Planis anteriores»', hint: 'Documentos · puedes subir varios archivos a la vez; avisa solo al cliente', flag: 'docs' },
-  { key: 'lista', label: 'Mandar lista de la compra (si tiene nutri) — Documentos', flag: 'docs' },
   { key: 'programa', label: 'Añadir / actualizar su programa en la Agenda', flag: 'agenda' },
   { key: 'proxplani', label: 'Apuntar recordatorio privado de la siguiente plani', hint: 'Agenda → Notas privadas. Sale en Resumen → Próximos avisos', flag: 'agenda' },
   { key: 'evol', label: 'Enseñarle su cambio físico y los hábitos que ha logrado', flag: 'evol' },

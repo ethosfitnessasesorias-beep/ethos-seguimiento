@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { colors, mut } from '../../theme'
 import {
-  addEvent,
+  addEventsBatch,
   deleteEvent,
   deleteProgram,
   deleteTemplate,
@@ -261,7 +261,7 @@ export default function ClienteAgenda({ clientId }: { clientId: string }) {
           Sin programas. Crea uno con «Programar semana».
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10, alignItems: 'start' }}>
           {programs.map((p) => (
             <ProgramCard key={p.id} p={p} onDelete={() => removeProgram(p.id)} onEdit={() => setEditProgram(p)} />
           ))}
@@ -394,37 +394,37 @@ function ProgramCard({ p, onDelete, onEdit }: { p: ProgramGroup; onDelete?: () =
   }, [p.events])
 
   return (
-    <div style={{ ...card, padding: '16px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => setOpen((o) => !o)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 11, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left' }}>
-          <span style={{ color: mut(0.4), fontSize: 12, width: 12 }}>{open ? '▾' : '▸'}</span>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: colors.text }}>{p.name}</div>
-            <div style={{ fontSize: 11, color: mut(0.45), marginTop: 2 }}>
-              {p.events.length} eventos · {p.weeks} semana{p.weeks > 1 ? 's' : ''} · desde {p.from}
+    <div style={{ ...card, padding: '11px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button onClick={() => setOpen((o) => !o)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textAlign: 'left' }}>
+          <span style={{ color: mut(0.4), fontSize: 11, width: 10, flex: 'none' }}>{open ? '▾' : '▸'}</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: colors.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+            <div style={{ fontSize: 10.5, color: mut(0.45), marginTop: 1 }}>
+              {p.events.length} eventos · {p.weeks} sem. · desde {p.from.slice(5)}
             </div>
           </div>
         </button>
         {onEdit && (
-          <button onClick={onEdit} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '6px 11px', color: colors.text, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>
-            Editar
+          <button onClick={onEdit} title="Editar programa" style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '5px 9px', color: colors.text, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, flex: 'none' }}>
+            ✎
           </button>
         )}
         {onDelete && (
-          <button onClick={onDelete} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '6px 11px', color: mut(0.55), cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>
-            Eliminar
+          <button onClick={onDelete} title="Eliminar programa" style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '5px 9px', color: mut(0.55), cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, flex: 'none' }}>
+            ✕
           </button>
         )}
       </div>
       {open && (
-        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
           {DAYS.map((dname, wd) => {
             const items = breakdown[wd]
             if (!items || items.length === 0) return null
             return (
-              <div key={wd} style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: mut(0.5), width: 74, flex: 'none' }}>{dname}</span>
-                <span style={{ fontSize: 13, color: colors.text }}>{items.join(' · ')}</span>
+              <div key={wd} style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: mut(0.5), width: 64, flex: 'none' }}>{dname}</span>
+                <span style={{ fontSize: 11.5, color: colors.text, lineHeight: 1.45 }}>{items.join(' · ')}</span>
               </div>
             )
           })}
@@ -434,9 +434,9 @@ function ProgramCard({ p, onDelete, onEdit }: { p: ProgramGroup; onDelete?: () =
   )
 }
 
-// ---------- Modal: añadir evento (puntual o repetido) ----------
+// ---------- Modal: añadir eventos (uno o varios tipos, puntual o repetido) ----------
 function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; date: string; onClose: () => void; onDone: () => void }) {
-  const [type, setType] = useState<EventType>('entreno')
+  const [types, setTypes] = useState<EventType[]>(['entreno'])
   const [title, setTitle] = useState('')
   const [time, setTime] = useState('')
   const [repeat, setRepeat] = useState(false)
@@ -445,13 +445,24 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  const toggleType = (t: EventType) => setTypes((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]))
+
   const save = async () => {
+    if (types.length === 0) return setErr('Marca al menos un tipo de tarea.')
     if (repeat && endDate && endDate < date) return setErr('La fecha de fin debe ser posterior a la del evento.')
     setBusy(true)
     setErr(null)
     try {
+      // El nombre personalizado solo aplica cuando hay UN tipo; con varios, cada
+      // evento usa el nombre de su tipo. La hora aplica a todos.
+      const entries = types.map((t) => ({
+        type: t,
+        title: types.length === 1 ? title.trim() || undefined : undefined,
+        time: time.trim() || undefined,
+      }))
       if (!repeat) {
-        await addEvent(clientId, { event_date: date, type, title: title.trim() || undefined, time: time.trim() || undefined })
+        // Todos los eventos del día en una sola llamada.
+        await addEventsBatch(clientId, date, entries)
       } else {
         // Repetición periódica: se crea como un mini-programa (agrupado, editable/borrable).
         const wd = weekdayOfISO(date)
@@ -459,8 +470,9 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
         const interval = Math.max(1, parseInt(everyWeeks, 10) || 1)
         const FOREVER_WEEKS = 52
         const weeks = endDate ? weeksBetween(start, mondayOf(endDate)) : FOREVER_WEEKS
-        const pattern: WeekPattern = { [wd]: [{ type, title: title.trim() || undefined, time: time.trim() || undefined }] }
-        await generateProgram(clientId, pattern, start, Math.max(1, weeks), title.trim() || EVENT_TYPES[type].label, interval)
+        const pattern: WeekPattern = { [wd]: entries }
+        const name = title.trim() || (types.length === 1 ? EVENT_TYPES[types[0]].label : `${types.length} tareas · ${DAYS[wd]}`)
+        await generateProgram(clientId, pattern, start, Math.max(1, weeks), name, interval)
       }
       onDone()
     } catch (e) {
@@ -470,23 +482,25 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
   }
 
   return (
-    <Modal title={`Añadir evento · ${date}`} onClose={onClose}>
-      <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>TIPO</div>
+    <Modal title={`Añadir eventos · ${date}`} onClose={onClose}>
+      <div style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, marginBottom: 6 }}>TIPOS · puedes marcar varios a la vez</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
         {EVENT_ORDER.map((t) => {
           const cfg = EVENT_TYPES[t]
-          const on = t === type
+          const on = types.includes(t)
           return (
-            <button key={t} onClick={() => setType(t)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: on ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${on ? cfg.color : 'rgba(255,255,255,0.12)'}`, borderRadius: 999, padding: '7px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: on ? colors.text : mut(0.55), cursor: 'pointer' }}>
+            <button key={t} onClick={() => toggleType(t)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: on ? 'rgba(255,255,255,0.06)' : 'transparent', border: `1px solid ${on ? cfg.color : 'rgba(255,255,255,0.12)'}`, borderRadius: 999, padding: '7px 12px', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: on ? colors.text : mut(0.55), cursor: 'pointer' }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: cfg.color }} />
-              {cfg.label}
+              {on ? '✓ ' : ''}{cfg.label}
             </button>
           )
         })}
       </div>
       <label style={{ display: 'block', marginBottom: 12 }}>
-        <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Nombre (opcional)</span>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Entrenamiento de fuerza" style={fieldStyle} />
+        <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>
+          Nombre {types.length > 1 ? '(con varios tipos, cada evento usa el nombre de su tipo)' : '(opcional)'}
+        </span>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Entrenamiento de fuerza" disabled={types.length > 1 && !repeat} style={{ ...fieldStyle, opacity: types.length > 1 && !repeat ? 0.45 : 1 }} />
       </label>
       <label style={{ display: 'block', marginBottom: 12 }}>
         <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Hora (opcional)</span>
@@ -524,7 +538,7 @@ function AddEventModal({ clientId, date, onClose, onDone }: { clientId: string; 
 
       {err && <div style={{ fontSize: 12.5, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
       <button onClick={save} disabled={busy} style={{ width: '100%', marginTop: 16, background: colors.accent, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-        {busy ? 'Creando…' : repeat ? 'Crear eventos' : 'Añadir evento'}
+        {busy ? 'Creando…' : repeat ? 'Crear eventos repetidos' : types.length > 1 ? `Añadir ${types.length} eventos` : 'Añadir evento'}
       </button>
     </Modal>
   )

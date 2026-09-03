@@ -263,7 +263,7 @@ export default function ProgressPhotos({ clientId, canUpload = false, columns = 
                             style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 9, overflow: 'hidden', background: '#161616', border: isSel ? `2px solid ${colors.accent}` : '1px solid rgba(255,255,255,0.06)', cursor: selectable ? 'pointer' : 'default' }}
                           >
                             {p.url ? (
-                              <img src={p.url} alt={p.log_date} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                              <img src={p.thumbUrl ?? p.url} alt={p.log_date} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                             ) : (
                               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: mut(0.3) }}>Foto</div>
                             )}

@@ -196,6 +196,25 @@ export async function addEvent(
   if (error) throw error
 }
 
+/** Crea varios eventos puntuales del mismo día en UNA sola llamada (rápido). */
+export async function addEventsBatch(
+  clientId: string,
+  eventDate: string,
+  entries: { type: EventType; title?: string; time?: string }[],
+) {
+  if (entries.length === 0) return
+  const rows = entries.map((e) => ({
+    client_id: clientId,
+    event_date: eventDate,
+    type: e.type,
+    title: e.title || null,
+    time: e.time || null,
+    detail: null,
+  }))
+  const { error } = await supabase.from('events').insert(rows)
+  if (error) throw error
+}
+
 export async function deleteEvent(id: string) {
   const { error } = await supabase.from('events').delete().eq('id', id)
   if (error) throw error
