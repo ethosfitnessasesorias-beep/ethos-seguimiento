@@ -318,6 +318,11 @@ export async function saveTemplate(name: string, pattern: WeekPattern) {
   if (error) throw error
 }
 
+export async function updateTemplate(id: string, name: string, pattern: WeekPattern) {
+  const { error } = await supabase.from('program_templates').update({ name, pattern }).eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteTemplate(id: string) {
   const { error } = await supabase.from('program_templates').delete().eq('id', id)
   if (error) throw error
