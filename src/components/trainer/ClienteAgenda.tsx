@@ -346,18 +346,29 @@ function weeksBetween(startMonday: string, endMonday: string): number {
   return Math.round((b - a) / (7 * 86400000)) + 1
 }
 
-// Reconstruye el patrón semanal a partir de los eventos de un programa.
+// Reconstruye el patrón semanal a partir de los eventos de un programa,
+// incluida la frecuencia de cada tarea (según el hueco entre sus repeticiones).
 function programToInitial(p: ProgramGroup): ProgramInitial {
+  const startMonday = mondayOf(p.from)
+  const startMs = new Date(startMonday).getTime()
   const pattern: WeekPattern = {}
-  const seen = new Set<string>()
+  const weeksByKey = new Map<string, Set<number>>()
+  const entryByKey = new Map<string, { wd: number; type: EventType; title?: string; time?: string }>()
   for (const e of p.events) {
     const wd = weekdayOfISO(e.event_date)
     const key = `${wd}|${e.type}|${e.title ?? ''}|${e.time ?? ''}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    ;(pattern[wd] ||= []).push({ type: e.type, title: e.title ?? undefined, time: e.time ?? undefined })
+    const wk = Math.round((new Date(mondayOf(e.event_date)).getTime() - startMs) / (7 * 86400000))
+    if (!weeksByKey.has(key)) weeksByKey.set(key, new Set())
+    weeksByKey.get(key)!.add(wk)
+    if (!entryByKey.has(key)) entryByKey.set(key, { wd, type: e.type as EventType, title: e.title ?? undefined, time: e.time ?? undefined })
   }
-  return { id: p.id, name: p.name, pattern, startMonday: mondayOf(p.from), endDate: p.to }
+  for (const [key, entry] of entryByKey) {
+    const wks = [...(weeksByKey.get(key) ?? [])].sort((a, b) => a - b)
+    let every = 1
+    if (wks.length >= 2) every = Math.min(...wks.slice(1).map((w, i) => w - wks[i]))
+    ;(pattern[entry.wd] ||= []).push({ type: entry.type, title: entry.title, time: entry.time, everyWeeks: every > 1 ? every : undefined })
+  }
+  return { id: p.id, name: p.name, pattern, startMonday, endDate: p.to }
 }
 
 function groupEvents(events: CalEvent[]): { programs: ProgramGroup[] } {
@@ -570,6 +581,12 @@ function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string
   const setEntryTitle = (day: number, type: EventType, title: string) => {
     setPattern((prev) => ({ ...prev, [day]: (prev[day] || []).map((x) => (x.type === type ? { ...x, title } : x)) }))
   }
+  const setEntryEvery = (day: number, type: EventType, everyWeeks: number) => {
+    setPattern((prev) => ({ ...prev, [day]: (prev[day] || []).map((x) => (x.type === type ? { ...x, everyWeeks: everyWeeks > 1 ? everyWeeks : undefined } : x)) }))
+  }
+  const setEntryTime = (day: number, type: EventType, time: string) => {
+    setPattern((prev) => ({ ...prev, [day]: (prev[day] || []).map((x) => (x.type === type ? { ...x, time: time || undefined } : x)) }))
+  }
   const has = (day: number, type: EventType) => (pattern[day] || []).some((x) => x.type === type)
 
   // Sin fecha de fin: se genera un horizonte largo (1 año).
@@ -670,13 +687,35 @@ function ProgramModal({ clientId, onClose, onDone, initial }: { clientId: string
                 {active.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                     {active.map((e) => (
-                      <input
-                        key={e.type}
-                        value={e.title ?? ''}
-                        onChange={(ev) => setEntryTitle(day, e.type, ev.target.value)}
-                        placeholder={`${EVENT_TYPES[e.type].label}: nombre (opcional, ej: Entrenamiento de fuerza)`}
-                        style={{ ...fieldStyle, background: '#0e0e0e', fontSize: 12.5, padding: '9px 11px' }}
-                      />
+                      <div key={e.type} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: EVENT_TYPES[e.type].color, flex: 'none' }} />
+                        <input
+                          value={e.title ?? ''}
+                          onChange={(ev) => setEntryTitle(day, e.type, ev.target.value)}
+                          placeholder={`${EVENT_TYPES[e.type].label}: nombre (opcional)`}
+                          style={{ ...fieldStyle, background: '#0e0e0e', fontSize: 12, padding: '8px 10px', flex: 1, minWidth: 0 }}
+                        />
+                        <select
+                          value={String(e.everyWeeks ?? 1)}
+                          onChange={(ev) => setEntryEvery(day, e.type, parseInt(ev.target.value, 10))}
+                          title="Cada cuántas semanas se repite esta tarea"
+                          style={{ ...fieldStyle, background: '#0e0e0e', fontSize: 11.5, padding: '8px 6px', width: 96, flex: 'none', cursor: 'pointer' }}
+                        >
+                          <option value="1">cada sem.</option>
+                          <option value="2">cada 2 sem.</option>
+                          <option value="3">cada 3 sem.</option>
+                          <option value="4">cada 4 sem.</option>
+                          <option value="6">cada 6 sem.</option>
+                          <option value="8">cada 8 sem.</option>
+                        </select>
+                        <input
+                          value={e.time ?? ''}
+                          onChange={(ev) => setEntryTime(day, e.type, ev.target.value)}
+                          placeholder="hora"
+                          title="Hora (opcional)"
+                          style={{ ...fieldStyle, background: '#0e0e0e', fontSize: 11.5, padding: '8px 6px', width: 58, flex: 'none', textAlign: 'center' }}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}

@@ -243,7 +243,9 @@ export async function addHabitOccurrences(
 
 // ---- Programas semanales ----
 // pattern: para cada día (0=Lunes … 6=Domingo) una lista de eventos.
-export type WeekPattern = Record<number, { type: EventType; title?: string; time?: string }[]>
+// Cada entrada puede tener su propia frecuencia (everyWeeks: 1 = todas las
+// semanas, 2 = semanas alternas…) y su hora opcional.
+export type WeekPattern = Record<number, { type: EventType; title?: string; time?: string; everyWeeks?: number }[]>
 
 export interface ProgramTemplate {
   id: string
@@ -281,6 +283,9 @@ export async function generateProgram(
       if (entries.length === 0) continue
       const date = isoAddDays(startMondayISO, w * 7 + day)
       for (const e of entries) {
+        // Frecuencia propia de cada tarea: solo se incluye en sus semanas.
+        const every = Math.max(1, e.everyWeeks ?? 1)
+        if (w % every !== 0) continue
         rows.push({
           client_id: clientId,
           event_date: date,

@@ -129,6 +129,8 @@ export default function Biblioteca() {
                             <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                               <span style={{ width: 7, height: 7, borderRadius: 2, background: cfg?.color ?? '#888' }} />
                               {e.title || cfg?.label}
+                              {e.everyWeeks && e.everyWeeks > 1 ? <span style={{ color: mut(0.45), fontSize: 11 }}>(cada {e.everyWeeks} sem.)</span> : null}
+                              {e.time ? <span style={{ color: mut(0.45), fontSize: 11 }}>{e.time}</span> : null}
                             </span>
                           )
                         })}
@@ -182,6 +184,10 @@ function TemplateModal({ initial, onClose, onSaved }: { initial: ProgramTemplate
     })
   const setEntryTitle = (day: number, type: EventType, title: string) =>
     setPattern((prev) => ({ ...prev, [day]: (prev[day] || []).map((x) => (x.type === type ? { ...x, title: title || undefined } : x)) }))
+  const setEntryEvery = (day: number, type: EventType, everyWeeks: number) =>
+    setPattern((prev) => ({ ...prev, [day]: (prev[day] || []).map((x) => (x.type === type ? { ...x, everyWeeks: everyWeeks > 1 ? everyWeeks : undefined } : x)) }))
+  const setEntryTime = (day: number, type: EventType, time: string) =>
+    setPattern((prev) => ({ ...prev, [day]: (prev[day] || []).map((x) => (x.type === type ? { ...x, time: time || undefined } : x)) }))
   const has = (day: number, type: EventType) => (pattern[day] || []).some((x) => x.type === type)
 
   const save = async () => {
@@ -228,13 +234,35 @@ function TemplateModal({ initial, onClose, onSaved }: { initial: ProgramTemplate
                 {active.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                     {active.map((e) => (
-                      <input
-                        key={e.type}
-                        defaultValue={e.title ?? ''}
-                        onBlur={(ev) => setEntryTitle(day, e.type as EventType, ev.target.value)}
-                        placeholder={`${EVENT_TYPES[e.type as EventType].label}: nombre (opcional, ej: Entrenamiento de fuerza)`}
-                        style={{ ...fieldStyle, fontSize: 12, padding: '8px 10px' }}
-                      />
+                      <div key={e.type} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: EVENT_TYPES[e.type as EventType].color, flex: 'none' }} />
+                        <input
+                          value={e.title ?? ''}
+                          onChange={(ev) => setEntryTitle(day, e.type as EventType, ev.target.value)}
+                          placeholder={`${EVENT_TYPES[e.type as EventType].label}: nombre (opcional)`}
+                          style={{ ...fieldStyle, fontSize: 12, padding: '8px 10px', flex: 1, minWidth: 0 }}
+                        />
+                        <select
+                          value={String(e.everyWeeks ?? 1)}
+                          onChange={(ev) => setEntryEvery(day, e.type as EventType, parseInt(ev.target.value, 10))}
+                          title="Cada cuántas semanas se repite esta tarea"
+                          style={{ ...fieldStyle, fontSize: 11.5, padding: '8px 6px', width: 96, flex: 'none', cursor: 'pointer' }}
+                        >
+                          <option value="1">cada sem.</option>
+                          <option value="2">cada 2 sem.</option>
+                          <option value="3">cada 3 sem.</option>
+                          <option value="4">cada 4 sem.</option>
+                          <option value="6">cada 6 sem.</option>
+                          <option value="8">cada 8 sem.</option>
+                        </select>
+                        <input
+                          value={e.time ?? ''}
+                          onChange={(ev) => setEntryTime(day, e.type as EventType, ev.target.value)}
+                          placeholder="hora"
+                          title="Hora (opcional)"
+                          style={{ ...fieldStyle, fontSize: 11.5, padding: '8px 6px', width: 58, flex: 'none', textAlign: 'center' }}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
