@@ -662,6 +662,8 @@ function AllRecords({ weights, perims, steps, profile, onChanged }: { weights: W
   const [editW, setEditW] = useState<WeightLog | null>(null)
   const [editP, setEditP] = useState<PerimeterLog | null>(null)
   const [editS, setEditS] = useState<StepLog | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [exportText, setExportText] = useState<string | null>(null)
   const comp = compositionSeries(profile?.sex ?? null, profile?.height_cm ?? null, weights, perims)
 
   // Índices por fecha.
@@ -709,12 +711,63 @@ function AllRecords({ weights, perims, steps, profile, onChanged }: { weights: W
     onChanged()
   }
 
+  // Exporta la tabla como texto para pegarlo en Claude (solo lo ve el entrenador).
+  const buildExport = (): string => {
+    const asc = [...dates].sort()
+    const head = ['Fecha', ...rows.filter((r) => asc.some((d) => r.get(d) != null)).map((r) => r.label)]
+    const used = rows.filter((r) => asc.some((d) => r.get(d) != null))
+    const lines = [
+      `Métricas de ${profile?.full_name || 'cliente'}${profile?.sex ? ` (${profile.sex === 'female' ? 'mujer' : 'hombre'}` : ''}${profile?.height_cm ? `, ${profile.height_cm} cm` : ''}${profile?.sex || profile?.height_cm ? ')' : ''}`,
+      `Exportado el ${fullDate(new Date().toISOString().slice(0, 10))} · ${asc.length} fechas`,
+      '',
+      head.join(' | '),
+      head.map(() => '---').join(' | '),
+      ...asc.map((d) => [d, ...used.map((r) => (r.get(d) != null ? String(r.get(d)) : ''))].join(' | ')),
+    ]
+    return lines.join('\n')
+  }
+
+  const exportData = async () => {
+    const text = buildExport()
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch {
+      // Si el navegador bloquea el portapapeles, se muestra el texto para copiarlo a mano.
+      setExportText(text)
+    }
+  }
+
   const labelCell: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: mut(0.75), textAlign: 'left', padding: '9px 12px', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: colors.surface1, borderBottom: '1px solid rgba(255,255,255,0.05)' }
   const cellStyle: React.CSSProperties = { fontSize: 12.5, fontWeight: 600, textAlign: 'center', padding: '9px 14px', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.05)' }
   const headCell: React.CSSProperties = { padding: '8px 14px', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(255,255,255,0.09)' }
 
   return (
     <div style={{ marginTop: 12 }}>
+      {/* exportar para pegar en Claude */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+        <button
+          onClick={exportData}
+          style={{ background: copied ? 'rgba(74,222,128,0.14)' : colors.surface2, color: copied ? colors.green : colors.text, border: `1px solid ${copied ? 'rgba(74,222,128,0.4)' : 'rgba(255,255,255,0.12)'}`, borderRadius: 10, padding: '9px 14px', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+        >
+          {copied ? '✓ Copiado al portapapeles' : '📋 Exportar datos (copiar para Claude)'}
+        </button>
+        <span style={{ fontSize: 11, color: mut(0.4) }}>Copia toda la tabla como texto para pegarla en tu proyecto de Claude.</span>
+      </div>
+
+      {exportText && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11.5, color: colors.amber, marginBottom: 5 }}>Copia este texto a mano (tu navegador no permitió el copiado automático):</div>
+          <textarea
+            readOnly
+            value={exportText}
+            onFocus={(e) => e.currentTarget.select()}
+            style={{ width: '100%', height: 150, background: '#0e0e0e', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: 10, color: colors.text, fontFamily: 'monospace', fontSize: 11, outline: 'none' }}
+          />
+        </div>
+      )}
+
       <div style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12 }} className="om-scroll">
         <table style={{ borderCollapse: 'collapse', minWidth: '100%' }}>
           <thead>
