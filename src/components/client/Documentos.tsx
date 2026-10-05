@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { catStyle, downloadDocument, humanSize, isViewableDoc, listDocuments, listFolders, type DocFolder, type DocumentWithUrl } from '../../lib/documents'
+import { catStyle, downloadDocument, folderTree, folderWithDescendants, humanSize, isViewableDoc, listDocuments, listFolders, openDocumentInTab, type DocFolder, type DocumentWithUrl } from '../../lib/documents'
 import { Search, FileIcon, Download } from '../icons'
 
 const chips = ['Todos', 'Entrenamiento', 'Nutrición', 'Guía', 'Contrato']
@@ -11,9 +11,10 @@ function shortDate(iso: string): string {
   return `${Number(d)} ${M[Number(m) - 1]} ${y}`
 }
 
-// Fila de documento. Los PDF e imágenes se abren en pestaña (el navegador los
-// muestra); el resto (Word, Excel…) se DESCARGA como archivo, porque navegar a
-// ellos deja la pantalla en blanco dentro de la app instalada.
+// Fila de documento. Los PDF e imágenes se abren en pestaña con un enlace
+// firmado AL MOMENTO (los de la lista caducan si la app lleva horas abierta);
+// el resto (Word, Excel…) se DESCARGA como archivo, porque navegar a ellos
+// deja la pantalla en blanco dentro de la app instalada.
 function DocRow({ d }: { d: DocumentWithUrl }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(false)
@@ -30,7 +31,7 @@ function DocRow({ d }: { d: DocumentWithUrl }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 600 }}>{d.title}</div>
         <div style={{ fontSize: 11, color: err ? '#f5a99f' : mut(0.45), marginTop: 3 }}>
-          {busy ? 'Descargando…' : err ? 'No se pudo descargar. Toca para reintentar.' : (
+          {busy ? (viewable ? 'Abriendo…' : 'Descargando…') : err ? 'No se pudo abrir. Toca para reintentar.' : (
             <>
               <span style={{ color: st.color, fontWeight: 600 }}>{d.category}</span> · {shortDate(d.created_at)}
               {d.size_bytes ? ` · ${humanSize(d.size_bytes)}` : ''}
@@ -42,20 +43,13 @@ function DocRow({ d }: { d: DocumentWithUrl }) {
     </>
   )
 
-  if (viewable && d.url) {
-    return (
-      <a href={d.url} target="_blank" rel="noreferrer" style={rowStyle}>
-        {inner}
-      </a>
-    )
-  }
-
-  const download = async () => {
+  const open = async () => {
     if (busy) return
     setBusy(true)
     setErr(false)
     try {
-      await downloadDocument(d)
+      if (viewable) await openDocumentInTab(d)
+      else await downloadDocument(d)
     } catch {
       setErr(true)
     } finally {
@@ -64,7 +58,7 @@ function DocRow({ d }: { d: DocumentWithUrl }) {
   }
 
   return (
-    <button onClick={download} style={{ ...rowStyle, opacity: busy ? 0.7 : 1 }}>
+    <button onClick={open} style={{ ...rowStyle, opacity: busy ? 0.7 : 1 }}>
       {inner}
     </button>
   )
@@ -103,16 +97,29 @@ export default function Documentos({ clientId }: { clientId: string }) {
 
   const shown = filter === 'Todos' ? docs : docs.filter((d) => d.category === filter)
 
-  // Agrupa por carpeta (ordenadas/filtradas); las sueltas, en "General".
+  // Agrupa por carpeta en árbol (subcarpetas sangradas); las sueltas, en "General".
+  // Una carpeta con subcarpetas que tengan documentos se muestra aunque esté vacía.
   const q = folderFilter.trim().toLowerCase()
-  const sortedFolders = [...folders].sort((a, b) =>
-    folderSort === 'date' ? (a.created_at < b.created_at ? 1 : -1) : a.name.localeCompare(b.name),
-  )
-  const shownFolders = q ? sortedFolders.filter((f) => f.name.toLowerCase().includes(q)) : sortedFolders
-  const groups: { name: string; id: string | null; docs: DocumentWithUrl[] }[] = [
-    ...shownFolders.map((f) => ({ name: f.name, id: f.id as string | null, docs: shown.filter((d) => d.folder_id === f.id) })),
-    ...(q ? [] : [{ name: 'General', id: null as string | null, docs: shown.filter((d) => !d.folder_id) }]),
-  ].filter((g) => g.docs.length > 0)
+  const tree = folderTree(folders)
+  const docsOf = (id: string) => shown.filter((d) => d.folder_id === id)
+  const hasDocsDeep = (id: string) => folderWithDescendants(folders, id).some((fid) => docsOf(fid).length > 0)
+  const matchIds = new Set<string>()
+  if (q) {
+    for (const f of tree.filter((x) => x.path.toLowerCase().includes(q))) {
+      matchIds.add(f.id)
+      let p = f.parent_id
+      while (p) {
+        matchIds.add(p)
+        p = folders.find((x) => x.id === p)?.parent_id ?? null
+      }
+    }
+  }
+  const groups: { name: string; id: string | null; depth: number; docs: DocumentWithUrl[] }[] = [
+    ...tree
+      .filter((f) => (q ? matchIds.has(f.id) : true) && hasDocsDeep(f.id))
+      .map((f) => ({ name: f.name, id: f.id as string | null, depth: f.depth, docs: docsOf(f.id) })),
+    ...(q ? [] : [{ name: 'General', id: null as string | null, depth: 0, docs: shown.filter((d) => !d.folder_id) }].filter((g) => g.docs.length > 0)),
+  ]
 
   return (
     <div>
@@ -149,17 +156,17 @@ export default function Documentos({ clientId }: { clientId: string }) {
           {docs.length === 0 ? 'Tu entrenador aún no ha subido documentos.' : 'No hay documentos en esta categoría.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {groups.map((g) => {
             const isCollapsed = g.id ? collapsed.has(g.id) : false
             return (
-            <div key={g.id ?? 'general'}>
+            <div key={g.id ?? 'general'} style={{ marginLeft: g.depth * 16, borderLeft: g.depth > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, paddingLeft: g.depth > 0 ? 10 : 0 }}>
               <button onClick={() => g.id && toggleFolder(g.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: g.id ? 'pointer' : 'default', fontFamily: 'inherit', padding: 0, marginBottom: 9, color: mut(0.6) }}>
                 {g.id && <span style={{ fontSize: 11, color: mut(0.4) }}>{isCollapsed ? '▸' : '▾'}</span>}
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{g.id ? `📁 ${g.name}` : 'General'}</span>
                 <span style={{ fontSize: 11, color: mut(0.4) }}>{g.docs.length}</span>
               </button>
-              {!isCollapsed && (
+              {!isCollapsed && g.docs.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {g.docs.map((d) => (
                   <DocRow key={d.id} d={d} />

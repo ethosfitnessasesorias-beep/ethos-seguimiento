@@ -22,7 +22,43 @@ export interface DocFolder {
   id: string
   client_id: string
   name: string
+  parent_id: string | null // carpeta madre (null = carpeta raíz)
   created_at: string
+}
+
+/** Carpeta con su nivel de profundidad, ya ordenada como un árbol. */
+export interface FolderNode extends DocFolder {
+  depth: number
+  path: string // "Padre / Hija" — para los desplegables
+}
+
+/** Ordena las carpetas en árbol (padres antes que hijas) con su profundidad. */
+export function folderTree(folders: DocFolder[]): FolderNode[] {
+  const byParent = new Map<string | null, DocFolder[]>()
+  for (const f of folders) {
+    const k = f.parent_id ?? null
+    if (!byParent.has(k)) byParent.set(k, [])
+    byParent.get(k)!.push(f)
+  }
+  for (const list of byParent.values()) list.sort((a, b) => a.name.localeCompare(b.name))
+  const out: FolderNode[] = []
+  const walk = (parent: string | null, depth: number, prefix: string) => {
+    for (const f of byParent.get(parent) ?? []) {
+      const path = prefix ? `${prefix} / ${f.name}` : f.name
+      out.push({ ...f, depth, path })
+      if (depth < 4) walk(f.id, depth + 1, path) // tope de 5 niveles
+    }
+  }
+  walk(null, 0, '')
+  return out
+}
+
+/** Ids de una carpeta y de todas sus descendientes. */
+export function folderWithDescendants(folders: DocFolder[], id: string): string[] {
+  const out = [id]
+  const kids = folders.filter((f) => f.parent_id === id)
+  for (const k of kids) out.push(...folderWithDescendants(folders, k.id))
+  return out
 }
 
 export interface DocumentRow {
@@ -103,6 +139,27 @@ export async function downloadDocument(doc: DocumentRow): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
+/**
+ * Abre un documento visualizable (PDF, imagen) en una pestaña con un enlace
+ * firmado EN ESE MOMENTO. Nunca reutiliza los enlaces de la lista: si la app
+ * llevaba horas abierta o suspendida, esos enlaces ya han caducado y Supabase
+ * devuelve el error "InvalidJWT / exp claim timestamp check failed".
+ */
+export async function openDocumentInTab(doc: DocumentRow): Promise<void> {
+  // La pestaña se abre YA (dentro del gesto del usuario) y se rellena cuando
+  // llega el enlace; si se abriera tras el await, Safari la bloquearía.
+  const win = window.open('', '_blank')
+  try {
+    const { data, error } = await supabase.storage.from(DOC_BUCKET).createSignedUrl(doc.storage_path, 600)
+    if (error || !data?.signedUrl) throw error ?? new Error('No se pudo generar el enlace.')
+    if (win) win.location.href = data.signedUrl
+    else window.location.href = data.signedUrl
+  } catch (e) {
+    win?.close()
+    throw e instanceof Error ? e : new Error('No se pudo abrir el documento.')
+  }
+}
+
 export async function listDocuments(clientId: string): Promise<DocumentWithUrl[]> {
   const { data, error } = await supabase
     .from('documents')
@@ -160,14 +217,23 @@ export async function listFolders(clientId: string): Promise<DocFolder[]> {
   return (data ?? []) as DocFolder[]
 }
 
-export async function createFolder(clientId: string, name: string): Promise<void> {
-  const { error } = await supabase.from('document_folders').insert({ client_id: clientId, name: name.trim() })
+export async function createFolder(clientId: string, name: string, parentId?: string | null): Promise<void> {
+  const { error } = await supabase
+    .from('document_folders')
+    .insert({ client_id: clientId, name: name.trim(), parent_id: parentId ?? null })
   if (error) throw error
 }
 
-// Borra la carpeta; sus documentos quedan sin carpeta (no se eliminan).
+// Borra la carpeta (y sus subcarpetas, en cascada). Los documentos NO se
+// eliminan: quedan sin carpeta.
 export async function deleteFolder(id: string): Promise<void> {
   const { error } = await supabase.from('document_folders').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Mueve una carpeta dentro de otra (o a la raíz con null).
+export async function moveFolder(id: string, parentId: string | null): Promise<void> {
+  const { error } = await supabase.from('document_folders').update({ parent_id: parentId }).eq('id', id)
   if (error) throw error
 }
 

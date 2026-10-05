@@ -7,8 +7,12 @@ import {
   deleteDocument,
   deleteFolder,
   downloadDocument,
+  folderTree,
+  folderWithDescendants,
   humanSize,
   isViewableDoc,
+  moveFolder,
+  openDocumentInTab,
   setDocumentCategory,
   listDocuments,
   listFolders,
@@ -16,6 +20,7 @@ import {
   UPLOAD_CATEGORIES,
   type DocCategory,
   type DocFolder,
+  type FolderNode,
   type DocumentWithUrl,
 } from '../../lib/documents'
 import { sendNow } from '../../lib/messages'
@@ -29,7 +34,8 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
   const [folders, setFolders] = useState<DocFolder[]>([])
   const [loading, setLoading] = useState(true)
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [folderOpen, setFolderOpen] = useState(false)
+  // null = cerrado · '' = crear en la raíz · '<id>' = crear dentro de esa carpeta
+  const [folderOpen, setFolderOpen] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [folderSort, setFolderSort] = useState<'name' | 'date'>('date')
   const [folderFilter, setFolderFilter] = useState('')
@@ -66,30 +72,39 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
     reload()
   }
   const removeFolder = async (f: DocFolder) => {
-    if (!confirm(`¿Eliminar la carpeta «${f.name}»? Los documentos que contiene NO se borran, quedan sin carpeta.`)) return
+    if (!confirm(`¿Eliminar la carpeta «${f.name}» y sus subcarpetas? Los documentos NO se borran: quedan sin carpeta.`)) return
     await deleteFolder(f.id)
     reload()
   }
 
-  // Grupos: una sección por carpeta (ordenadas/filtradas) + "Sin carpeta".
+  // Carpetas en árbol (padres → hijas, con su profundidad). El filtro de
+  // búsqueda muestra también las carpetas madre para no perder el contexto.
   const q = folderFilter.trim().toLowerCase()
-  const sortedFolders = [...folders].sort((a, b) =>
-    folderSort === 'date' ? (a.created_at < b.created_at ? 1 : -1) : a.name.localeCompare(b.name),
-  )
-  const shownFolders = q ? sortedFolders.filter((f) => f.name.toLowerCase().includes(q)) : sortedFolders
-  const groups: { folder: DocFolder | null; docs: DocumentWithUrl[] }[] = [
-    ...shownFolders.map((f) => ({ folder: f as DocFolder | null, docs: docs.filter((d) => d.folder_id === f.id) })),
-    ...(q ? [] : [{ folder: null as DocFolder | null, docs: docs.filter((d) => !d.folder_id) }]),
+  const tree = folderTree(folders)
+  const matches = q ? tree.filter((f) => f.path.toLowerCase().includes(q)) : tree
+  const keepIds = new Set<string>()
+  for (const m of matches) {
+    keepIds.add(m.id)
+    let p = m.parent_id
+    while (p) {
+      keepIds.add(p)
+      p = folders.find((f) => f.id === p)?.parent_id ?? null
+    }
+  }
+  const shownFolders = q ? tree.filter((f) => keepIds.has(f.id)) : tree
+  const groups: { folder: FolderNode | null; docs: DocumentWithUrl[] }[] = [
+    ...shownFolders.map((f) => ({ folder: f as FolderNode | null, docs: docs.filter((d) => d.folder_id === f.id) })),
+    ...(q ? [] : [{ folder: null as FolderNode | null, docs: docs.filter((d) => !d.folder_id) }]),
   ]
 
-  const folderName = (id: string | null) => folders.find((f) => f.id === id)?.name ?? null
+  const folderName = (id: string | null) => tree.find((f) => f.id === id)?.path ?? null
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 13, color: mut(0.5) }}>Documentos que verá el cliente (planes, guías…), organizados en carpetas.</div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setFolderOpen(true)} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 14px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={() => setFolderOpen('')} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 14px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + Carpeta
           </button>
           <button onClick={() => setUploadOpen(true)} style={{ background: colors.accent, color: '#fff', border: 'none', borderRadius: 11, padding: '10px 16px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -116,22 +131,46 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
           Aún no has subido documentos para este cliente.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {groups.map((g) => {
             if (g.folder === null && g.docs.length === 0) return null
             const isCollapsed = g.folder ? collapsed.has(g.folder.id) : false
+            const depth = g.folder?.depth ?? 0
             return (
-              <div key={g.folder?.id ?? 'root'}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div key={g.folder?.id ?? 'root'} style={{ marginLeft: depth * 22, borderLeft: depth > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, paddingLeft: depth > 0 ? 12 : 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                   <button onClick={() => g.folder && toggleFolder(g.folder.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: g.folder ? 'pointer' : 'default', fontFamily: 'inherit', padding: 0, color: colors.text }}>
                     {g.folder && <span style={{ fontSize: 11, color: mut(0.4) }}>{isCollapsed ? '▸' : '▾'}</span>}
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>{g.folder ? `📁 ${g.folder.name}` : 'Sin carpeta'}</span>
+                    <span style={{ fontSize: depth > 0 ? 12.5 : 13, fontWeight: 700 }}>{g.folder ? `📁 ${g.folder.name}` : 'Sin carpeta'}</span>
                     <span style={{ fontSize: 11, color: mut(0.4) }}>{g.docs.length}</span>
                   </button>
                   {g.folder && (
-                    <button onClick={() => removeFolder(g.folder!)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
-                      Eliminar carpeta
-                    </button>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {g.folder.depth < 4 && (
+                        <button onClick={() => setFolderOpen(g.folder!.id)} title="Crear una subcarpeta dentro de esta" style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '4px 9px', color: mut(0.6), cursor: 'pointer', fontFamily: 'inherit', fontSize: 11 }}>
+                          + Subcarpeta
+                        </button>
+                      )}
+                      <select
+                        value={g.folder.parent_id ?? ''}
+                        onChange={async (e) => {
+                          await moveFolder(g.folder!.id, e.target.value || null)
+                          reload()
+                        }}
+                        title="Mover esta carpeta dentro de otra"
+                        style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '4px 7px', color: mut(0.6), fontFamily: 'inherit', fontSize: 11, outline: 'none', maxWidth: 150, cursor: 'pointer' }}
+                      >
+                        <option value="">— En la raíz —</option>
+                        {tree
+                          .filter((f) => !folderWithDescendants(folders, g.folder!.id).includes(f.id) && f.depth < 4)
+                          .map((f) => (
+                            <option key={f.id} value={f.id}>{'— '.repeat(f.depth)}{f.name}</option>
+                          ))}
+                      </select>
+                      <button onClick={() => removeFolder(g.folder!)} style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
+                        Eliminar
+                      </button>
+                    </div>
                   )}
                 </div>
                 {!isCollapsed && (g.docs.length === 0 ? (
@@ -142,7 +181,7 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
                       <DocRow
                         key={d.id}
                         d={d}
-                        folders={folders}
+                        folders={tree}
                         currentFolderName={folderName(d.folder_id)}
                         onRemove={() => remove(d)}
                         onMove={async (fid) => {
@@ -166,7 +205,7 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
       {uploadOpen && (
         <UploadModal
           clientId={clientId}
-          folders={folders}
+          folders={tree}
           onClose={() => setUploadOpen(false)}
           onDone={() => {
             setUploadOpen(false)
@@ -174,12 +213,14 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
           }}
         />
       )}
-      {folderOpen && (
+      {folderOpen !== null && (
         <FolderModal
           clientId={clientId}
-          onClose={() => setFolderOpen(false)}
+          parentId={folderOpen || null}
+          parentName={folderOpen ? tree.find((f) => f.id === folderOpen)?.path ?? null : null}
+          onClose={() => setFolderOpen(null)}
           onDone={() => {
-            setFolderOpen(false)
+            setFolderOpen(null)
             reload()
           }}
         />
@@ -197,7 +238,7 @@ function DocRow({
   onCategory,
 }: {
   d: DocumentWithUrl
-  folders: DocFolder[]
+  folders: FolderNode[]
   currentFolderName: string | null
   onRemove: () => void
   onMove: (folderId: string | null) => void
@@ -240,14 +281,18 @@ function DocRow({
         >
           <option value="">Sin carpeta</option>
           {folders.map((f) => (
-            <option key={f.id} value={f.id}>📁 {f.name}</option>
+            <option key={f.id} value={f.id}>{'\u00a0\u00a0'.repeat(f.depth)}📁 {f.name}</option>
           ))}
         </select>
       )}
-      {isViewableDoc(d) && d.url ? (
-        <a href={d.url} target="_blank" rel="noreferrer" style={{ color: mut(0.6) }}>
+      {isViewableDoc(d) ? (
+        <button
+          onClick={() => openDocumentInTab(d).catch(() => alert('No se pudo abrir el documento. Vuelve a intentarlo.'))}
+          title="Abrir"
+          style={{ background: 'none', border: 'none', color: mut(0.6), cursor: 'pointer', padding: 0 }}
+        >
           <Download />
-        </a>
+        </button>
       ) : (
         <button
           onClick={() => downloadDocument(d).catch(() => alert('No se pudo descargar el documento.'))}
@@ -262,7 +307,7 @@ function DocRow({
   )
 }
 
-function FolderModal({ clientId, onClose, onDone }: { clientId: string; onClose: () => void; onDone: () => void }) {
+function FolderModal({ clientId, parentId, parentName, onClose, onDone }: { clientId: string; parentId: string | null; parentName: string | null; onClose: () => void; onDone: () => void }) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -272,7 +317,7 @@ function FolderModal({ clientId, onClose, onDone }: { clientId: string; onClose:
     setBusy(true)
     setErr(null)
     try {
-      await createFolder(clientId, name)
+      await createFolder(clientId, name, parentId)
       onDone()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'No se pudo crear.')
@@ -281,7 +326,12 @@ function FolderModal({ clientId, onClose, onDone }: { clientId: string; onClose:
   }
 
   return (
-    <Modal title="Nueva carpeta" onClose={onClose}>
+    <Modal title={parentName ? 'Nueva subcarpeta' : 'Nueva carpeta'} onClose={onClose}>
+      {parentName && (
+        <div style={{ fontSize: 12, color: mut(0.55), background: colors.surface2, borderRadius: 9, padding: '8px 11px', marginBottom: 12 }}>
+          Se creará dentro de <b style={{ color: colors.text }}>📁 {parentName}</b>
+        </div>
+      )}
       <label style={{ display: 'block', marginBottom: 6 }}>
         <span style={{ fontSize: 11, color: mut(0.5), fontWeight: 600, display: 'block', marginBottom: 5 }}>Nombre</span>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Planes de entrenamiento" style={fieldStyle} autoFocus />
@@ -294,7 +344,7 @@ function FolderModal({ clientId, onClose, onDone }: { clientId: string; onClose:
   )
 }
 
-function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string; folders: DocFolder[]; onClose: () => void; onDone: () => void }) {
+function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string; folders: FolderNode[]; onClose: () => void; onDone: () => void }) {
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<DocCategory>('Entrenamiento')
   const [folderId, setFolderId] = useState<string>('')
@@ -370,7 +420,7 @@ function UploadModal({ clientId, folders, onClose, onDone }: { clientId: string;
         <select value={folderId} onChange={(e) => setFolderId(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
           <option value="">Sin carpeta</option>
           {folders.map((f) => (
-            <option key={f.id} value={f.id}>{f.name}</option>
+            <option key={f.id} value={f.id}>{'\u00a0\u00a0'.repeat(f.depth)}{f.depth > 0 ? '└ ' : ''}{f.name}</option>
           ))}
         </select>
       </label>

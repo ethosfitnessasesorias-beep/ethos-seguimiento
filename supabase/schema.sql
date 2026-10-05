@@ -749,3 +749,8 @@ alter table public.gift_claims add column if not exists gift_note text;
 --  v30 · Miniaturas de fotos de progreso (carga rápida)
 -- ============================================================
 alter table public.progress_photos add column if not exists thumb_path text;
+
+-- ============================================================
+--  v31 · Subcarpetas de documentos (árbol tipo Drive)
+-- ============================================================
+alter table public.document_folders add column if not exists parent_id uuid references public.document_folders(id) on delete cascade;
