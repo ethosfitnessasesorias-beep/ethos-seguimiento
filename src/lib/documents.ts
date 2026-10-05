@@ -247,3 +247,14 @@ export async function setDocumentCategory(docId: string, category: DocCategory):
   const { error } = await supabase.from('documents').update({ category }).eq('id', docId)
   if (error) throw error
 }
+
+/** Ids de todas las carpetas madre de una carpeta (de la más cercana a la raíz). */
+export function folderAncestors(folders: DocFolder[], id: string): string[] {
+  const out: string[] = []
+  let p = folders.find((f) => f.id === id)?.parent_id ?? null
+  while (p) {
+    out.push(p)
+    p = folders.find((f) => f.id === p)?.parent_id ?? null
+  }
+  return out
+}

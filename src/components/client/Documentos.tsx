@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { catStyle, downloadDocument, folderTree, folderWithDescendants, humanSize, isViewableDoc, listDocuments, listFolders, openDocumentInTab, type DocFolder, type DocumentWithUrl } from '../../lib/documents'
+import { catStyle, downloadDocument, folderAncestors, folderTree, folderWithDescendants, humanSize, isViewableDoc, listDocuments, listFolders, openDocumentInTab, type DocFolder, type DocumentWithUrl } from '../../lib/documents'
 import { Search, FileIcon, Download } from '../icons'
 
 const chips = ['Todos', 'Entrenamiento', 'Nutrición', 'Guía', 'Contrato']
@@ -114,9 +114,12 @@ export default function Documentos({ clientId }: { clientId: string }) {
       }
     }
   }
+  // Una carpeta solo se ve si ninguna de sus madres está plegada: al plegar
+  // una carpeta se oculta todo su contenido, subcarpetas incluidas.
+  const visible = (id: string) => folderAncestors(folders, id).every((a) => !collapsed.has(a))
   const groups: { name: string; id: string | null; depth: number; docs: DocumentWithUrl[] }[] = [
     ...tree
-      .filter((f) => (q ? matchIds.has(f.id) : true) && hasDocsDeep(f.id))
+      .filter((f) => (q ? matchIds.has(f.id) : true) && hasDocsDeep(f.id) && visible(f.id))
       .map((f) => ({ name: f.name, id: f.id as string | null, depth: f.depth, docs: docsOf(f.id) })),
     ...(q ? [] : [{ name: 'General', id: null as string | null, depth: 0, docs: shown.filter((d) => !d.folder_id) }].filter((g) => g.docs.length > 0)),
   ]
@@ -164,7 +167,10 @@ export default function Documentos({ clientId }: { clientId: string }) {
               <button onClick={() => g.id && toggleFolder(g.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: g.id ? 'pointer' : 'default', fontFamily: 'inherit', padding: 0, marginBottom: 9, color: mut(0.6) }}>
                 {g.id && <span style={{ fontSize: 11, color: mut(0.4) }}>{isCollapsed ? '▸' : '▾'}</span>}
                 <span style={{ fontSize: 12, fontWeight: 700 }}>{g.id ? `📁 ${g.name}` : 'General'}</span>
-                <span style={{ fontSize: 11, color: mut(0.4) }}>{g.docs.length}</span>
+                <span style={{ fontSize: 11, color: mut(0.4) }}>
+                  {g.docs.length}
+                  {g.id && folders.filter((f) => f.parent_id === g.id).length > 0 ? ` · ${folders.filter((f) => f.parent_id === g.id).length} carp.` : ''}
+                </span>
               </button>
               {!isCollapsed && g.docs.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

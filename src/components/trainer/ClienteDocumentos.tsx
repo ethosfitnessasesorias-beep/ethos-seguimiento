@@ -7,6 +7,7 @@ import {
   deleteDocument,
   deleteFolder,
   downloadDocument,
+  folderAncestors,
   folderTree,
   folderWithDescendants,
   humanSize,
@@ -39,6 +40,9 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [folderSort, setFolderSort] = useState<'name' | 'date'>('date')
   const [folderFilter, setFolderFilter] = useState('')
+  // Arrastre tipo Drive: qué se está arrastrando y sobre qué carpeta se suelta.
+  const [dragging, setDragging] = useState<{ kind: 'doc' | 'folder'; id: string } | null>(null)
+  const [dragOver, setDragOver] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     try {
@@ -77,6 +81,26 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
     reload()
   }
 
+  // Soltar lo arrastrado sobre una carpeta (null = raíz / «Sin carpeta»).
+  const dropOn = async (targetId: string | null) => {
+    const d = dragging
+    setDragging(null)
+    setDragOver(null)
+    if (!d) return
+    try {
+      if (d.kind === 'doc') {
+        await moveDocument(d.id, targetId)
+      } else {
+        // Una carpeta no puede meterse dentro de sí misma ni de sus hijas.
+        if (targetId && folderWithDescendants(folders, d.id).includes(targetId)) return
+        await moveFolder(d.id, targetId)
+      }
+      reload()
+    } catch {
+      /* si falla, la vista se queda como estaba */
+    }
+  }
+
   // Carpetas en árbol (padres → hijas, con su profundidad). El filtro de
   // búsqueda muestra también las carpetas madre para no perder el contexto.
   const q = folderFilter.trim().toLowerCase()
@@ -91,18 +115,22 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
       p = folders.find((f) => f.id === p)?.parent_id ?? null
     }
   }
-  const shownFolders = q ? tree.filter((f) => keepIds.has(f.id)) : tree
+  // Una carpeta solo se ve si NINGUNA de sus madres está plegada: al plegar una
+  // carpeta desaparece todo su contenido, subcarpetas incluidas (como en Drive).
+  const visible = (f: FolderNode) => folderAncestors(folders, f.id).every((a) => !collapsed.has(a))
+  const shownFolders = (q ? tree.filter((f) => keepIds.has(f.id)) : tree).filter(visible)
   const groups: { folder: FolderNode | null; docs: DocumentWithUrl[] }[] = [
     ...shownFolders.map((f) => ({ folder: f as FolderNode | null, docs: docs.filter((d) => d.folder_id === f.id) })),
     ...(q ? [] : [{ folder: null as FolderNode | null, docs: docs.filter((d) => !d.folder_id) }]),
   ]
 
   const folderName = (id: string | null) => tree.find((f) => f.id === id)?.path ?? null
+  const subCount = (id: string) => folders.filter((f) => f.parent_id === id).length
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 13, color: mut(0.5) }}>Documentos que verá el cliente (planes, guías…), organizados en carpetas.</div>
+        <div style={{ fontSize: 13, color: mut(0.5) }}>Documentos que verá el cliente, en carpetas y subcarpetas. <b style={{ color: mut(0.7) }}>Arrastra</b> un documento o una carpeta sobre otra para moverlo.</div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => setFolderOpen('')} style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, padding: '10px 14px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             + Carpeta
@@ -133,16 +161,34 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {groups.map((g) => {
-            if (g.folder === null && g.docs.length === 0) return null
+            // «Sin carpeta» se muestra vacía solo mientras arrastras (zona de raíz).
+            if (g.folder === null && g.docs.length === 0 && !dragging) return null
             const isCollapsed = g.folder ? collapsed.has(g.folder.id) : false
             const depth = g.folder?.depth ?? 0
             return (
               <div key={g.folder?.id ?? 'root'} style={{ marginLeft: depth * 22, borderLeft: depth > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, paddingLeft: depth > 0 ? 12 : 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                <div
+                  draggable={!!g.folder}
+                  onDragStart={() => g.folder && setDragging({ kind: 'folder', id: g.folder.id })}
+                  onDragEnd={() => { setDragging(null); setDragOver(null) }}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(g.folder?.id ?? 'root') }}
+                  onDragLeave={() => setDragOver((c) => (c === (g.folder?.id ?? 'root') ? null : c))}
+                  onDrop={(e) => { e.preventDefault(); dropOn(g.folder?.id ?? null) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap',
+                    borderRadius: 9, padding: '4px 6px', margin: '0 -6px 10px',
+                    background: dragOver === (g.folder?.id ?? 'root') && dragging ? 'rgba(219,24,9,0.14)' : 'transparent',
+                    outline: dragOver === (g.folder?.id ?? 'root') && dragging ? `1px dashed ${colors.accent}` : 'none',
+                    opacity: dragging?.kind === 'folder' && dragging.id === g.folder?.id ? 0.4 : 1,
+                  }}
+                >
                   <button onClick={() => g.folder && toggleFolder(g.folder.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none', border: 'none', cursor: g.folder ? 'pointer' : 'default', fontFamily: 'inherit', padding: 0, color: colors.text }}>
                     {g.folder && <span style={{ fontSize: 11, color: mut(0.4) }}>{isCollapsed ? '▸' : '▾'}</span>}
                     <span style={{ fontSize: depth > 0 ? 12.5 : 13, fontWeight: 700 }}>{g.folder ? `📁 ${g.folder.name}` : 'Sin carpeta'}</span>
-                    <span style={{ fontSize: 11, color: mut(0.4) }}>{g.docs.length}</span>
+                    <span style={{ fontSize: 11, color: mut(0.4) }}>
+                      {g.docs.length}
+                      {g.folder && subCount(g.folder.id) > 0 ? ` · ${subCount(g.folder.id)} carp.` : ''}
+                    </span>
                   </button>
                   {g.folder && (
                     <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -192,6 +238,9 @@ export default function ClienteDocumentos({ clientId }: { clientId: string }) {
                           await setDocumentCategory(d.id, cat)
                           reload()
                         }}
+                        dragging={dragging?.kind === 'doc' && dragging.id === d.id}
+                        onDragStart={() => setDragging({ kind: 'doc', id: d.id })}
+                        onDragEnd={() => { setDragging(null); setDragOver(null) }}
                       />
                     ))}
                   </div>
@@ -236,6 +285,9 @@ function DocRow({
   onRemove,
   onMove,
   onCategory,
+  dragging,
+  onDragStart,
+  onDragEnd,
 }: {
   d: DocumentWithUrl
   folders: FolderNode[]
@@ -243,10 +295,19 @@ function DocRow({
   onRemove: () => void
   onMove: (folderId: string | null) => void
   onCategory: (cat: DocCategory) => void
+  dragging?: boolean
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }) {
   const st = catStyle(d.category)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 13, ...card, padding: '14px 15px' }}>
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      title="Arrástralo sobre una carpeta para moverlo"
+      style={{ display: 'flex', alignItems: 'center', gap: 13, ...card, padding: '14px 15px', opacity: dragging ? 0.4 : 1, cursor: 'grab' }}
+    >
       <div style={{ width: 42, height: 42, flex: 'none', borderRadius: 11, background: st.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <FileIcon size={19} stroke={st.color} />
       </div>
