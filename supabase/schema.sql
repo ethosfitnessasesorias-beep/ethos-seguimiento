@@ -772,3 +772,21 @@ language sql stable security definer set search_path = public as $$
   where t.role = 'trainer'
   group by t.id, t.full_name, t.email
 $$;
+
+-- ============================================================
+--  v33 · Historial de contacto por cliente (notas con fecha)
+-- ============================================================
+create table if not exists public.client_logs (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  trainer_id uuid references public.profiles(id) on delete set null,
+  log_date date not null default current_date,
+  kind text not null default 'nota',   -- nota | llamada | whatsapp | revision | incidencia
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists client_logs_client_idx on public.client_logs (client_id, log_date desc);
+alter table public.client_logs enable row level security;
+drop policy if exists "trainer manages client logs" on public.client_logs;
+create policy "trainer manages client logs" on public.client_logs
+  for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
