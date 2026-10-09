@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
 import { getTeamSummary, type TeamRow } from '../../lib/dashboard'
 import { createTrainer } from '../../lib/invites'
+import AccessRecovery from './AccessRecovery'
 
 const card: React.CSSProperties = { background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }
 const adhColor = (a: number) => (a >= 80 ? colors.green : a >= 60 ? colors.amber : colors.accent)
@@ -16,6 +17,7 @@ export default function Equipo({ myId }: { myId: string }) {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  const [access, setAccess] = useState<TeamRow | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -45,6 +47,14 @@ export default function Equipo({ myId }: { myId: string }) {
       </div>
 
       {addOpen && <AddTrainerModal onClose={() => setAddOpen(false)} onCreated={load} />}
+      {access && (
+        <AccessRecovery
+          userId={access.trainer_id}
+          name={access.trainer_name}
+          email={access.trainer_email}
+          onClose={() => setAccess(null)}
+        />
+      )}
 
       {err && (
         <div style={{ fontSize: 13, color: '#f5a99f', background: 'rgba(219,24,9,0.12)', border: '1px solid rgba(219,24,9,0.3)', borderRadius: 12, padding: '12px 14px', marginBottom: 16 }}>
@@ -75,8 +85,18 @@ export default function Equipo({ myId }: { myId: string }) {
                     {r.trainer_name || 'Entrenador'}
                     {r.trainer_id === myId && <span style={{ fontSize: 10, color: colors.accent, marginLeft: 8, fontWeight: 600 }}>· tú</span>}
                   </div>
-                  <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 2 }}>{r.clients} {r.clients === 1 ? 'cliente' : 'clientes'}</div>
+                  <div style={{ fontSize: 11.5, color: mut(0.5), marginTop: 2 }}>
+                    {r.clients} {r.clients === 1 ? 'cliente' : 'clientes'}
+                    {r.trainer_email ? <> · {r.trainer_email}</> : null}
+                  </div>
                 </div>
+                <button
+                  onClick={() => setAccess(r)}
+                  title="Generar un acceso nuevo para este entrenador"
+                  style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '7px 10px', color: mut(0.6), cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, flex: 'none' }}
+                >
+                  🔑 Acceso
+                </button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Stat label="Adherencia media" value={`${r.avg_adherence}%`} color={adhColor(r.avg_adherence)} />
@@ -88,7 +108,7 @@ export default function Equipo({ myId }: { myId: string }) {
       )}
 
       <div style={{ fontSize: 11.5, color: mut(0.35), marginTop: 22, lineHeight: 1.6 }}>
-        Cada entrenador que crees entra con su email y su contraseña, y arranca con su propia lista de clientes vacía. La reasignación de clientes entre entrenadores llegará en una mejora posterior.
+        Cada entrenador que crees entra con su email y su contraseña, y arranca con su propia lista de clientes vacía. Con 🔑 Acceso puedes devolverle la entrada si pierde la contraseña. La reasignación de clientes entre entrenadores llegará en una mejora posterior.
       </div>
     </div>
   )

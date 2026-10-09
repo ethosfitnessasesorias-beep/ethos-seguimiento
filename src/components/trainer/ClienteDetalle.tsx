@@ -30,6 +30,7 @@ import { compositionSeries } from '../../lib/composition'
 import { listSubmissions, setReviewed, deleteSubmission, type FormSubmission } from '../../lib/forms'
 import { downloadFormPdf } from '../../lib/formPdf'
 import MeasureGuide from '../MeasureGuide'
+import AccessRecovery from './AccessRecovery'
 import { getClientNote, saveClientNote } from '../../lib/notes'
 import { giftTimeline, listClaims, removeMilestoneClaim, setGiftNote, setMilestoneDelivered, type GiftClaim, type Milestone } from '../../lib/gifts'
 import { addOffer, deleteOffer, listOffers, setOfferLaunched, setOfferNotes, type ClientOffer } from '../../lib/offers'
@@ -254,6 +255,7 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
   const active = (profile.status ?? 'active') === 'active'
   const [busy, setBusy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [access, setAccess] = useState(false)
   const [delText, setDelText] = useState('')
   const [err, setErr] = useState<string | null>(null)
 
@@ -314,6 +316,13 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
           {active ? 'Dar de baja' : '↩ Reactivar'}
         </button>
         <button
+          onClick={() => setAccess(true)}
+          title="Si ha perdido el móvil o no puede entrar"
+          style={{ background: colors.surface2, color: colors.text, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          🔑 Recuperar acceso
+        </button>
+        <button
           onClick={() => { setConfirmDel(true); setDelText(''); setErr(null) }}
           disabled={busy}
           style={{ background: 'none', color: mut(0.45), border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '9px 15px', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
@@ -322,6 +331,16 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
         </button>
       </div>
       {err && <div style={{ fontSize: 12, color: '#f5a99f', marginTop: 10 }}>{err}</div>}
+
+      {access && (
+        <AccessRecovery
+          userId={profile.id}
+          name={profile.full_name}
+          email={profile.email}
+          phone={profile.phone}
+          onClose={() => setAccess(false)}
+        />
+      )}
 
       {confirmDel && (
         <Modal title="Eliminar cliente definitivamente" onClose={() => setConfirmDel(false)}>

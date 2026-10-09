@@ -92,6 +92,7 @@ export function computeAtRisk(
 export interface TeamRow {
   trainer_id: string
   trainer_name: string | null
+  trainer_email: string | null
   clients: number
   avg_adherence: number
   avg_months: number

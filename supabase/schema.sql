@@ -754,3 +754,21 @@ alter table public.progress_photos add column if not exists thumb_path text;
 --  v31 · Subcarpetas de documentos (árbol tipo Drive)
 -- ============================================================
 alter table public.document_folders add column if not exists parent_id uuid references public.document_folders(id) on delete cascade;
+
+-- ============================================================
+--  v32 · El resumen de equipo incluye el email del entrenador
+-- ============================================================
+drop function if exists public.get_team_summary();
+create or replace function public.get_team_summary()
+returns table(trainer_id uuid, trainer_name text, trainer_email text, clients int, avg_adherence numeric, avg_months numeric)
+language sql stable security definer set search_path = public as $$
+  select t.id, t.full_name, t.email,
+    count(c.id)::int,
+    coalesce(round(avg(c.adherence)), 0)::numeric,
+    coalesce(round(avg(extract(epoch from (now() - c.created_at)) / 2629800.0)::numeric, 1), 0)::numeric
+  from public.profiles t
+  left join public.profiles c
+    on c.trainer_id = t.id and c.role = 'client' and coalesce(c.status,'active') = 'active'
+  where t.role = 'trainer'
+  group by t.id, t.full_name, t.email
+$$;

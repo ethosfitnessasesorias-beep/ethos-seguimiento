@@ -55,6 +55,34 @@ export async function createTrainer(email: string, password: string, fullName: s
   if (!res.ok || !out.ok) throw new Error(out.error || 'No se pudo crear el entrenador.')
 }
 
+// ---- Recuperar el acceso de un cliente (o de un compañero entrenador) ----
+// mode 'link': devuelve un enlace de un solo uso para entrar y poner contraseña.
+// mode 'password': fija una contraseña temporal que le dices tú.
+export async function resetAccess(
+  userId: string,
+  mode: 'link' | 'password',
+  password?: string,
+): Promise<{ link?: string; email?: string }> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Sesión no encontrada. Vuelve a iniciar sesión.')
+  const res = await fetch('/api/reset-access', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ user_id: userId, mode, password, redirect_to: window.location.origin }),
+  })
+  const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; link?: string; email?: string }
+  if (!res.ok || !out.ok) throw new Error(out.error || 'No se pudo recuperar el acceso.')
+  return { link: out.link, email: out.email }
+}
+
+/** Contraseña temporal fácil de dictar por WhatsApp. */
+export function tempPassword(): string {
+  const words = ['ethos', 'fuerza', 'progreso', 'constancia', 'energia', 'musculo']
+  const w = words[Math.floor(Math.random() * words.length)]
+  return `${w}${Math.floor(1000 + Math.random() * 9000)}`
+}
+
 export function inviteLink(id: string): string {
   return `${window.location.origin}/?invite=${id}`
 }
