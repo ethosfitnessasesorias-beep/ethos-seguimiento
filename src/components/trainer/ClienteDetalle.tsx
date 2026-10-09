@@ -31,6 +31,8 @@ import { listSubmissions, setReviewed, deleteSubmission, type FormSubmission } f
 import { downloadFormPdf } from '../../lib/formPdf'
 import MeasureGuide from '../MeasureGuide'
 import AccessRecovery from './AccessRecovery'
+import ContactLog from './ContactLog'
+import { getTeamSummary, type TeamRow } from '../../lib/dashboard'
 import { getClientNote, saveClientNote } from '../../lib/notes'
 import { giftTimeline, listClaims, removeMilestoneClaim, setGiftNote, setMilestoneDelivered, type GiftClaim, type Milestone } from '../../lib/gifts'
 import { addOffer, deleteOffer, listOffers, setOfferLaunched, setOfferNotes, type ClientOffer } from '../../lib/offers'
@@ -167,6 +169,9 @@ export default function ClienteDetalle({ clientId, tTab, setTTab, goClientes }: 
       {/* notas privadas del entrenador */}
       <PrivateNotes clientId={clientId} />
 
+      {/* historial de contacto (llamadas, mensajes, incidencias…) */}
+      <ContactLog clientId={clientId} />
+
       {/* regalos de fidelidad (gestión) */}
       {profile && <GiftsManager profile={profile} />}
 
@@ -256,6 +261,7 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
   const [busy, setBusy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const [access, setAccess] = useState(false)
+  const [team, setTeam] = useState<TeamRow[]>([])
   const [delText, setDelText] = useState('')
   const [err, setErr] = useState<string | null>(null)
 
@@ -280,6 +286,22 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
     }
   }
 
+  // Reasignar el cliente a otro entrenador del equipo.
+  const reassign = async (trainerId: string) => {
+    if (!trainerId || trainerId === profile.trainer_id) return
+    const who = team.find((t) => t.trainer_id === trainerId)?.trainer_name || 'ese entrenador'
+    if (!confirm(`¿Pasar a ${profile.full_name || 'este cliente'} a ${who}? Dejará de aparecer en tu lista de clientes.`)) return
+    setBusy(true)
+    setErr(null)
+    try {
+      await updateProfile(profile.id, { trainer_id: trainerId })
+      goClientes()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'No se pudo reasignar.')
+      setBusy(false)
+    }
+  }
+
   const del = async () => {
     setBusy(true)
     setErr(null)
@@ -291,6 +313,10 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    getTeamSummary().then(setTeam).catch(() => setTeam([]))
+  }, [])
 
   return (
     <div style={{ ...card, padding: '14px 20px', marginTop: 12, borderColor: active ? card.border as string : 'rgba(245,166,35,0.3)' }}>
@@ -315,6 +341,22 @@ function ClientLifecycle({ profile, onChanged, goClientes }: { profile: Profile;
         >
           {active ? 'Dar de baja' : '↩ Reactivar'}
         </button>
+        {team.length > 1 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: mut(0.5) }}>
+            Entrenador
+            <select
+              value={profile.trainer_id ?? ''}
+              onChange={(e) => reassign(e.target.value)}
+              disabled={busy}
+              title="Pasar este cliente a otro entrenador"
+              style={{ background: colors.surface2, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '7px 9px', color: colors.text, fontFamily: 'inherit', fontSize: 12, outline: 'none', cursor: 'pointer', maxWidth: 150 }}
+            >
+              {team.map((t) => (
+                <option key={t.trainer_id} value={t.trainer_id}>{t.trainer_name || 'Entrenador'}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           onClick={() => setAccess(true)}
           title="Si ha perdido el móvil o no puede entrar"

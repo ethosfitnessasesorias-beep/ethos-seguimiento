@@ -9,6 +9,7 @@ import ClienteDetalle from './ClienteDetalle'
 import Biblioteca from './Biblioteca'
 import FormulariosTrainer from './FormulariosTrainer'
 import Equipo from './Equipo'
+import ClientSearch from './ClientSearch'
 
 export type TrainerView = 'resumen' | 'clientes' | 'cliente' | 'biblioteca' | 'formularios' | 'equipo'
 export type TrainerTab = 'evolucion' | 'fotos' | 'formularios' | 'agenda' | 'documentos' | 'checklist'
@@ -85,7 +86,8 @@ export default function TrainerApp({ profile, onSignOut }: Props) {
             </button>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, justifyContent: 'flex-end' }}>
+          <ClientSearch onOpenClient={openClient} />
           <Bell size={20} stroke={mut(0.55)} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: colors.surface2, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, padding: '5px 12px 5px 5px' }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#db1809,#7a0d04)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
