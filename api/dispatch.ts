@@ -46,6 +46,13 @@ function madridNow(): { date: string; hhmm: string; weekday: number } {
   const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7
   return { date, hhmm, weekday }
 }
+// Suma (o resta) días a una fecha ISO, sin depender de la zona horaria.
+function isoAddDays(iso: string, n: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + n))
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+}
+
 function weeksBetween(a: string, b: string): number {
   const [ay, am, ad] = a.split('-').map(Number)
   const [by, bm, bd] = b.split('-').map(Number)
@@ -72,7 +79,7 @@ if (PUSH_ENABLED) {
 async function sendEmail(to: string, subject: string, text: string) {
   const from = process.env.RESEND_FROM || 'ETHOS GYM <onboarding@resend.dev>'
   const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), 8000)
+  const timer = setTimeout(() => ac.abort(), 5000)
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -114,11 +121,11 @@ export default async function handler(req: Req, res: Res) {
   let pushes = 0
   const errors: string[] = []
 
-  // Presupuesto de tiempo: cortamos en 25s para responder al cron (timeout 30s)
-  // antes de que nos dé por caídos. Lo que no dé tiempo se reintenta en la
-  // siguiente pasada (solo marcamos como enviado lo que sí se envió).
+  // Presupuesto de tiempo. El cron corta a los 30s y el arranque en frío de
+  // Vercel (que no podemos medir aquí) ya se come varios segundos, así que
+  // cortamos pronto. Lo que no dé tiempo se hace en la siguiente pasada.
   const startedAt = Date.now()
-  const withinBudget = () => Date.now() - startedAt < 25000
+  const withinBudget = () => Date.now() - startedAt < 17000
 
   // Caché de email/nombre por cliente, para no repetir consultas en cada envío.
   const infoCache = new Map<string, { email: string | null; name: string | null }>()
@@ -131,15 +138,21 @@ export default async function handler(req: Req, res: Res) {
     return info
   }
 
+  const subsCache = new Map<string, { id: string; subscription: unknown }[]>()
   const sendPush = async (clientId: string, title: string, body: string): Promise<number> => {
     if (!PUSH_ENABLED) return 0
-    const { data: subs } = await supabase.from('push_subscriptions').select('id, subscription').eq('client_id', clientId)
+    let subs = subsCache.get(clientId)
+    if (!subs) {
+      const { data } = await supabase.from('push_subscriptions').select('id, subscription').eq('client_id', clientId)
+      subs = (data ?? []) as { id: string; subscription: unknown }[]
+      subsCache.set(clientId, subs)
+    }
     let n = 0
-    for (const s of subs ?? []) {
+    for (const s of subs) {
       try {
         await withTimeout(
           webpush.sendNotification(s.subscription as webpush.PushSubscription, JSON.stringify({ title, body })),
-          8000,
+          5000,
           'push',
         )
         pushes++
@@ -180,18 +193,33 @@ export default async function handler(req: Req, res: Res) {
     .select('id, client_id, body, send_date, send_time')
     .lte('send_date', today)
     .is('notified_at', null)
+    .order('send_date', { ascending: true })
+    .limit(40)
+  // Fecha a partir de la cual un mensaje se da por perdido (email inválido, el
+  // cliente sin push…). Si no, se reintentaría en CADA pasada para siempre y
+  // acabaría consumiendo todo el tiempo disponible.
+  const giveUpBefore = isoAddDays(today, -5)
   for (const m of oneOffs ?? []) {
     if (!withinBudget()) break
     // Si es de un día anterior, se envía ya. Si es de hoy, espera a su hora.
     if (m.send_date === today && !timeReached(m.send_time, hhmm)) continue
     const ok = await deliver(m.client_id, m.body)
-    if (ok) await supabase.from('messages').update({ notified_at: new Date().toISOString() }).eq('id', m.id)
+    if (ok) {
+      await supabase.from('messages').update({ notified_at: new Date().toISOString() }).eq('id', m.id)
+    } else if (m.send_date < giveUpBefore) {
+      // Se marca como enviado para no bloquear las siguientes pasadas.
+      await supabase.from('messages').update({ notified_at: new Date().toISOString() }).eq('id', m.id)
+      errors.push(`msg ${m.id}: no se pudo entregar en 5 días, se descarta`)
+    }
   }
 
   // 2) Mensajes recurrentes que tocan hoy, respetando su hora.
   const { data: schedules } = await supabase
     .from('message_schedules')
     .select('id, client_id, body, weekday, interval_weeks, start_date, end_date, send_time')
+  // Todo lo ya enviado hoy, en UNA consulta (antes era una por programación).
+  const { data: sentRows } = await supabase.from('schedule_sends').select('schedule_id').eq('send_date', today)
+  const sentToday = new Set((sentRows ?? []).map((r) => r.schedule_id as string))
   for (const s of schedules ?? []) {
     if (!withinBudget()) break
     try {
@@ -201,13 +229,7 @@ export default async function handler(req: Req, res: Res) {
       if (!timeReached(s.send_time, hhmm)) continue
       const w = weeksBetween(s.start_date, today)
       if (w < 0 || w % Math.max(1, s.interval_weeks) !== 0) continue
-      const { data: already } = await supabase
-        .from('schedule_sends')
-        .select('id')
-        .eq('schedule_id', s.id)
-        .eq('send_date', today)
-        .maybeSingle()
-      if (already) continue
+      if (sentToday.has(s.id)) continue
       const ok = await deliver(s.client_id, s.body)
       if (ok) await supabase.from('schedule_sends').insert({ schedule_id: s.id, send_date: today })
     } catch (e) {
@@ -270,16 +292,25 @@ export default async function handler(req: Req, res: Res) {
       .select('id, trainer_id, client_id, remind_date, body')
       .lte('remind_date', today)
       .is('notified_at', null)
+    // Emails de entrenadores y nombres de clientes implicados, en UNA consulta.
+    const ids = Array.from(
+      new Set([...(rems ?? []).map((r) => r.trainer_id as string), ...(rems ?? []).map((r) => r.client_id as string | null).filter(Boolean) as string[]]),
+    )
+    interface Person { id: string; email: string | null; full_name: string | null }
+    let people: Person[] = []
+    if (ids.length) {
+      const { data } = await supabase.from('profiles').select('id, email, full_name').in('id', ids)
+      people = (data ?? []) as Person[]
+    }
+    const byId = new Map<string, Person>(people.map((x) => [x.id, x]))
     for (const r of rems ?? []) {
       if (!withinBudget()) break
       try {
-        const { data: t } = await supabase.from('profiles').select('email, full_name').eq('id', r.trainer_id).maybeSingle()
+        const t = byId.get(r.trainer_id as string)
         if (!t?.email) continue
-        let clientName = ''
-        if (r.client_id) {
-          const { data: c } = await supabase.from('profiles').select('full_name').eq('id', r.client_id).maybeSingle()
-          clientName = c?.full_name ? ` · ${c.full_name}` : ''
-        }
+        const clientName = r.client_id && byId.get(r.client_id as string)?.full_name
+          ? ` · ${byId.get(r.client_id as string)!.full_name}`
+          : ''
         await sendEmail(t.email, `ETHOS · Recordatorio de agenda${clientName}`, `Recordatorio para hoy${clientName}:\n\n${r.body}`)
         await supabase.from('agenda_reminders').update({ notified_at: new Date().toISOString() }).eq('id', r.id)
         agenda++
@@ -334,7 +365,9 @@ export default async function handler(req: Req, res: Res) {
       .eq('role', 'client')
     // Emails de los entrenadores (para el aviso de analítica).
     const { data: trainerRows } = await supabase.from('profiles').select('id, email').eq('role', 'trainer')
-    const trainerEmail = new Map((trainerRows ?? []).map((t) => [t.id as string, (t.email as string | null) ?? null]))
+    const trainerEmail = new Map<string, string | null>(
+      ((trainerRows ?? []) as { id: string; email: string | null }[]).map((t) => [t.id, t.email ?? null]),
+    )
     // Clientes con la reseña YA confirmada (check «resena_hecha» del checklist de
     // Seguimiento): a estos no se les vuelve a recordar.
     const { data: segRows } = await supabase.from('client_checklists').select('client_id, done').eq('kind', 'seguimiento')
