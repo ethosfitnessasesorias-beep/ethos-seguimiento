@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { addLog, deleteLog, listLogs, logKind, LOG_KINDS, type ClientLog, type LogKind } from '../../lib/logs'
+import {
+  addLog,
+  archiveLog,
+  deleteLog,
+  listArchivedLogs,
+  listLogs,
+  logKind,
+  LOG_KINDS,
+  unarchiveLog,
+  type ClientLog,
+  type LogKind,
+} from '../../lib/logs'
 import { fullDate } from '../../lib/metrics'
 
 const card: React.CSSProperties = { background: colors.surface1, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16 }
@@ -9,14 +20,17 @@ const card: React.CSSProperties = { background: colors.surface1, border: '1px so
 export default function ContactLog({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false)
   const [logs, setLogs] = useState<ClientLog[]>([])
+  const [archived, setArchived] = useState<ClientLog[]>([])
   const [kind, setKind] = useState<LogKind>('llamada')
   const [body, setBody] = useState('')
   const [date, setDate] = useState('')
   const [busy, setBusy] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  const [archOpen, setArchOpen] = useState(false)
 
   const load = () => {
     listLogs(clientId).then(setLogs).catch(() => setLogs([]))
+    listArchivedLogs(clientId).then(setArchived).catch(() => setArchived([]))
   }
   useEffect(load, [clientId])
 
@@ -34,8 +48,18 @@ export default function ContactLog({ clientId }: { clientId: string }) {
   }
 
   const remove = async (l: ClientLog) => {
-    if (!confirm('¿Eliminar esta anotación del historial?')) return
+    if (!confirm('¿Eliminar esta anotación definitivamente? No se podrá recuperar.')) return
     await deleteLog(l.id)
+    load()
+  }
+
+  const archive = async (l: ClientLog) => {
+    await archiveLog(l.id)
+    load()
+  }
+
+  const unarchive = async (l: ClientLog) => {
+    await unarchiveLog(l.id)
     load()
   }
 
@@ -48,7 +72,11 @@ export default function ContactLog({ clientId }: { clientId: string }) {
         <span style={{ color: mut(0.4), fontSize: 12 }}>{open ? '▾' : '▸'}</span>
         <span style={{ fontSize: 14, fontWeight: 700, color: colors.text, flex: 1, textAlign: 'left' }}>🗒 Historial de contacto</span>
         <span style={{ fontSize: 10.5, color: mut(0.4) }}>
-          {logs.length === 0 ? 'sin anotaciones' : `${logs.length} · último ${last.log_date}`}
+          {logs.length > 0
+            ? `${logs.length} · último ${last.log_date}`
+            : archived.length > 0
+              ? `sin activas · ${archived.length} archivada${archived.length === 1 ? '' : 's'}`
+              : 'sin anotaciones'}
         </span>
       </button>
 
@@ -97,7 +125,10 @@ export default function ContactLog({ clientId }: { clientId: string }) {
                       </div>
                       <div style={{ fontSize: 12.5, color: colors.text, marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{l.body}</div>
                     </div>
-                    <button onClick={() => remove(l)} title="Eliminar" style={{ background: 'none', border: 'none', color: mut(0.35), cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, flex: 'none' }}>✕</button>
+                    <div style={{ display: 'flex', gap: 10, flex: 'none', marginTop: 1 }}>
+                      <button onClick={() => archive(l)} title="Archivar" style={{ background: 'none', border: 'none', color: mut(0.35), cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>📥</button>
+                      <button onClick={() => remove(l)} title="Eliminar" style={{ background: 'none', border: 'none', color: mut(0.35), cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
+                    </div>
                   </div>
                 )
               })}
@@ -105,6 +136,41 @@ export default function ContactLog({ clientId }: { clientId: string }) {
                 <button onClick={() => setShowAll((v) => !v)} style={{ background: 'none', border: 'none', color: mut(0.5), cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, textAlign: 'left', padding: 0 }}>
                   {showAll ? '▴ Ver solo las últimas' : `▾ Ver las ${logs.length} anotaciones`}
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* archivadas */}
+          {archived.length > 0 && (
+            <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+              <button onClick={() => setArchOpen((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
+                <span style={{ color: mut(0.4), fontSize: 11 }}>{archOpen ? '▾' : '▸'}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: mut(0.55) }}>
+                  📥 Archivadas ({archived.length})
+                </span>
+              </button>
+
+              {archOpen && (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {archived.map((l) => {
+                    const k = logKind(l.kind)
+                    return (
+                      <div key={l.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', paddingBottom: 9, borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: 0.72 }}>
+                        <span style={{ fontSize: 13, flex: 'none', marginTop: 1 }}>{k.icon}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 10.5, color: k.color, fontWeight: 600 }}>
+                            {k.label} · <span style={{ color: mut(0.45) }}>{fullDate(l.log_date)}</span>
+                          </div>
+                          <div style={{ fontSize: 12.5, color: colors.text, marginTop: 2, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{l.body}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, flex: 'none', marginTop: 1 }}>
+                          <button onClick={() => unarchive(l)} title="Desarchivar" style={{ background: 'none', border: 'none', color: mut(0.4), cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>↩</button>
+                          <button onClick={() => remove(l)} title="Eliminar" style={{ background: 'none', border: 'none', color: mut(0.35), cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
           )}

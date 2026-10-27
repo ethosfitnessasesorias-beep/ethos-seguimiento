@@ -23,16 +23,32 @@ export interface ClientLog {
   log_date: string
   kind: LogKind
   body: string
+  archived_at: string | null // fecha de archivado; null = activa en la línea de tiempo
   created_at: string
 }
 
+// Anotaciones ACTIVAS (sin archivar). Es la línea de tiempo que se ve por defecto.
 export async function listLogs(clientId: string): Promise<ClientLog[]> {
   const { data, error } = await supabase
     .from('client_logs')
     .select('*')
     .eq('client_id', clientId)
+    .is('archived_at', null)
     .order('log_date', { ascending: false })
     .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as ClientLog[]
+}
+
+// Anotaciones ARCHIVADAS. Se consultan aparte, bajo demanda, para no cargar
+// la vista principal. Se ordenan por la fecha en que se archivaron.
+export async function listArchivedLogs(clientId: string): Promise<ClientLog[]> {
+  const { data, error } = await supabase
+    .from('client_logs')
+    .select('*')
+    .eq('client_id', clientId)
+    .not('archived_at', 'is', null)
+    .order('archived_at', { ascending: false })
   if (error) throw error
   return (data ?? []) as ClientLog[]
 }
@@ -51,6 +67,21 @@ export async function addLog(clientId: string, kind: LogKind, body: string, logD
 
 export async function deleteLog(id: string): Promise<void> {
   const { error } = await supabase.from('client_logs').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Archiva una anotación: la saca de la línea de tiempo sin borrarla.
+export async function archiveLog(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('client_logs')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+// Devuelve una anotación archivada a la línea de tiempo activa.
+export async function unarchiveLog(id: string): Promise<void> {
+  const { error } = await supabase.from('client_logs').update({ archived_at: null }).eq('id', id)
   if (error) throw error
 }
 
