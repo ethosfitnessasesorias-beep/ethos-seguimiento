@@ -783,14 +783,21 @@ create table if not exists public.client_logs (
   log_date date not null default current_date,
   kind text not null default 'nota',   -- nota | llamada | whatsapp | revision | incidencia
   body text not null,
-  archived_at timestamptz,             -- null = activa en la línea de tiempo; con fecha = archivada
   created_at timestamptz not null default now()
 );
--- Columna de archivado (idempotente para bases ya creadas antes de esta versión).
-alter table public.client_logs add column if not exists archived_at timestamptz;
 create index if not exists client_logs_client_idx on public.client_logs (client_id, log_date desc);
-create index if not exists client_logs_archived_idx on public.client_logs (client_id, archived_at);
 alter table public.client_logs enable row level security;
 drop policy if exists "trainer manages client logs" on public.client_logs;
 create policy "trainer manages client logs" on public.client_logs
   for all using (public.my_role() = 'trainer') with check (public.my_role() = 'trainer');
+
+-- ============================================================
+--  v34 · Archivar anotaciones del historial de contacto
+--  Las notas archivadas no se borran: salen de la vista normal
+--  y quedan guardadas en "Archivadas" para consultarlas cuando
+--  haga falta. Así el historial no crece sin control.
+-- ============================================================
+alter table public.client_logs add column if not exists archived boolean not null default false;
+alter table public.client_logs add column if not exists archived_at timestamptz;
+create index if not exists client_logs_active_idx
+  on public.client_logs (client_id, archived, log_date desc);

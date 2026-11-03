@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { updateProfile, type Profile } from '../lib/db'
 import { disablePush, enablePush, notificationPermission } from '../lib/push'
+import StoragePanel from './trainer/StoragePanel'
 
-const APP_VERSION = '6.9'
+const APP_VERSION = '7.1'
 
 interface Props {
   profile: Profile
@@ -46,6 +47,7 @@ export default function Settings({ profile, onClose, onSignOut }: Props) {
         {isClient && <MyDataSection profile={profile} onSaved={refreshProfile} />}
         {isClient && <NotificationsSection clientId={profile.id} />}
         <PasswordSection />
+        {!isClient && <StoragePanel />}
 
         {/* cerrar sesión */}
         <Section title="SESIÓN">

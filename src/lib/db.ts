@@ -390,7 +390,7 @@ export async function addPhoto(clientId: string, file: File, folderId?: string |
   const id = crypto.randomUUID()
   // Comprime la foto (máx. 1920 px) y genera una miniatura para la cuadrícula:
   // pasa de varios MB a unos cientos de KB y la galería carga al instante.
-  const full = await resizeToJpeg(file, 1920, 0.82)
+  const full = await resizeToJpeg(file, 1600, 0.78)
   const thumb = await resizeToJpeg(file, 420, 0.7)
   const ext = full ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase()
   const path = `${clientId}/${id}.${ext}`

@@ -23,34 +23,57 @@ export interface ClientLog {
   log_date: string
   kind: LogKind
   body: string
-  archived_at: string | null // fecha de archivado; null = activa en la línea de tiempo
+  archived: boolean
   created_at: string
 }
 
-// Anotaciones ACTIVAS (sin archivar). Es la línea de tiempo que se ve por defecto.
-export async function listLogs(clientId: string): Promise<ClientLog[]> {
+/**
+ * Anotaciones de un cliente. Por defecto solo las ACTIVAS; con
+ * `archived: true` devuelve las que se han archivado (no se borran nunca,
+ * solo salen de la vista normal para que el historial no ocupe tanto).
+ */
+export async function listLogs(clientId: string, archived = false): Promise<ClientLog[]> {
   const { data, error } = await supabase
     .from('client_logs')
     .select('*')
     .eq('client_id', clientId)
-    .is('archived_at', null)
+    .eq('archived', archived)
     .order('log_date', { ascending: false })
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []) as ClientLog[]
 }
 
-// Anotaciones ARCHIVADAS. Se consultan aparte, bajo demanda, para no cargar
-// la vista principal. Se ordenan por la fecha en que se archivaron.
-export async function listArchivedLogs(clientId: string): Promise<ClientLog[]> {
+/** Archiva (o recupera) una anotación. No borra nada. */
+export async function setLogArchived(id: string, archived: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('client_logs')
+    .update({ archived, archived_at: archived ? new Date().toISOString() : null })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Archiva de golpe todas las anotaciones activas con fecha anterior a
+ * `beforeISO`. Devuelve cuántas ha archivado.
+ */
+export async function archiveLogsBefore(clientId: string, beforeISO: string): Promise<number> {
   const { data, error } = await supabase
     .from('client_logs')
-    .select('*')
+    .update({ archived: true, archived_at: new Date().toISOString() })
     .eq('client_id', clientId)
-    .not('archived_at', 'is', null)
-    .order('archived_at', { ascending: false })
+    .eq('archived', false)
+    .lt('log_date', beforeISO)
+    .select('id')
   if (error) throw error
-  return (data ?? []) as ClientLog[]
+  return (data ?? []).length
+}
+
+/** Fecha ISO de hace N meses (para el archivado masivo). */
+export function monthsAgoISO(months: number): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() - months)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export async function addLog(clientId: string, kind: LogKind, body: string, logDate?: string): Promise<void> {
@@ -67,21 +90,6 @@ export async function addLog(clientId: string, kind: LogKind, body: string, logD
 
 export async function deleteLog(id: string): Promise<void> {
   const { error } = await supabase.from('client_logs').delete().eq('id', id)
-  if (error) throw error
-}
-
-// Archiva una anotación: la saca de la línea de tiempo sin borrarla.
-export async function archiveLog(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('client_logs')
-    .update({ archived_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) throw error
-}
-
-// Devuelve una anotación archivada a la línea de tiempo activa.
-export async function unarchiveLog(id: string): Promise<void> {
-  const { error } = await supabase.from('client_logs').update({ archived_at: null }).eq('id', id)
   if (error) throw error
 }
 
