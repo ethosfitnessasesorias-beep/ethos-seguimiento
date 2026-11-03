@@ -6,7 +6,7 @@ import { updateProfile, type Profile } from '../lib/db'
 import { disablePush, enablePush, notificationPermission } from '../lib/push'
 import StoragePanel from './trainer/StoragePanel'
 
-const APP_VERSION = '7.1'
+const APP_VERSION = '7.2'
 
 interface Props {
   profile: Profile

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { colors, mut } from '../../theme'
-import { analyzeStorage, deleteBigFile, deleteOrphans, human, optimizePhoto, type BigFile, type StorageReport } from '../../lib/storage'
+import { analyzeStorage, deleteBigFile, deleteOrphans, human, optimizeDocument, optimizePhoto, type BigFile, type StorageReport } from '../../lib/storage'
+
+import { COMPRESSIBLE_DOC_EXTS as COMPRESSIBLE } from '../../lib/storage'
 
 const LIMIT = 1024 * 1024 * 1024 // 1 GB del plan gratuito de Supabase
 
@@ -56,6 +58,7 @@ export default function StoragePanel() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ done: number; total: number; saved: number } | null>(null)
+  const [docProgress, setDocProgress] = useState<{ done: number; total: number; saved: number } | null>(null)
   const stopRef = useRef(false)
 
   const analyze = async () => {
@@ -109,6 +112,31 @@ export default function StoragePanel() {
     }
     setProgress(null)
     setMsg(`✓ ${done} fotos procesadas · ${human(saved)} liberados.`)
+    setBusy(false)
+    await analyze()
+  }
+
+  const optimizeDocs = async () => {
+    if (!report || report.heavyDocs.length === 0) return
+    if (!confirm(`¿Comprimir ${report.heavyDocs.length} documentos?\n\nLos PDF se vuelven a montar a 1400 px: se ven igual en el móvil y ocupan mucho menos, pero el texto deja de poder seleccionarse o buscarse dentro del PDF. Las imágenes solo se reescalan.\n\nSi un documento no se reduce al menos un 20 %, se queda como está. Puede tardar unos minutos: no cierres la app.`)) return
+    stopRef.current = false
+    setBusy(true)
+    setMsg(null)
+    let saved = 0
+    let done = 0
+    setDocProgress({ done: 0, total: report.heavyDocs.length, saved: 0 })
+    for (const d of report.heavyDocs) {
+      if (stopRef.current) break
+      try {
+        saved += await optimizeDocument(d)
+      } catch {
+        /* un documento que falle no detiene el resto */
+      }
+      done += 1
+      setDocProgress({ done, total: report.heavyDocs.length, saved })
+    }
+    setDocProgress(null)
+    setMsg(`✓ ${done} documentos procesados · ${human(saved)} liberados.`)
     setBusy(false)
     await analyze()
   }
@@ -190,7 +218,47 @@ export default function StoragePanel() {
             )}
           </div>
 
-          {/* 3 · reparto por cliente */}
+          {/* 3 · comprimir documentos */}
+          <div style={card}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>📄 Comprimir documentos</div>
+            <div style={{ fontSize: 11.5, color: mut(0.55), lineHeight: 1.6, marginBottom: 10 }}>
+              Los PDF de Canva o escaneados pesan de más porque por dentro son imágenes a resolución de imprenta. La app los vuelve a montar a 1400 px: <b style={{ color: mut(0.75) }}>se ven igual en el móvil</b>, pero el texto deja de poder seleccionarse dentro del PDF. Word, Excel y zip no se pueden comprimir.
+            </div>
+            {report.docsByExt.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                {report.docsByExt.slice(0, 6).map((e) => (
+                  <Row
+                    key={e.ext}
+                    label={`.${e.ext}`}
+                    value={human(e.bytes)}
+                    hint={COMPRESSIBLE.includes(e.ext) ? `${e.files} arch.` : `${e.files} arch. · no se puede`}
+                  />
+                ))}
+              </div>
+            )}
+            <div style={{ fontSize: 15, fontWeight: 700, color: report.heavyDocs.length > 0 ? '#f5a623' : colors.green, marginBottom: 10 }}>
+              {report.heavyDocs.length} comprimibles · {human(report.heavyDocBytes)}
+            </div>
+            {docProgress ? (
+              <div>
+                <div style={{ height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{ width: `${Math.round((docProgress.done / docProgress.total) * 100)}%`, height: '100%', background: colors.accent, borderRadius: 999 }} />
+                </div>
+                <div style={{ fontSize: 11.5, color: mut(0.6), marginBottom: 9 }}>
+                  {docProgress.done} de {docProgress.total} · {human(docProgress.saved)} liberados
+                </div>
+                <button onClick={() => { stopRef.current = true }} style={{ ...actionBtn(true), background: colors.surface2, color: mut(0.7), border: '1px solid rgba(255,255,255,0.12)' }}>
+                  Parar
+                </button>
+              </div>
+            ) : (
+              <button onClick={optimizeDocs} disabled={busy || report.heavyDocs.length === 0} style={actionBtn(!busy && report.heavyDocs.length > 0)}>
+                {report.heavyDocs.length === 0 ? '✓ Nada que comprimir' : `Comprimir ${report.heavyDocs.length} documentos`}
+              </button>
+            )}
+          </div>
+
+          {/* 4 · reparto por cliente */}
           {report.byClient.length > 0 && (
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 9 }}>👤 Quién ocupa más</div>
@@ -205,7 +273,7 @@ export default function StoragePanel() {
             </div>
           )}
 
-          {/* 4 · archivos más grandes, por si hay que borrar a mano */}
+          {/* 5 · archivos más grandes, por si hay que borrar a mano */}
           {report.bigFiles.length > 0 && (
             <div style={card}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>📦 Archivos más grandes</div>
